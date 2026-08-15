@@ -300,3 +300,20 @@ Honestidade sobre os limites, para você não descobrir no meio do desenho:
 O projeto é um arquivo só de propósito — mantenha assim. Antes de abrir um PR, rode
 `node test.mjs prancheta.html` e acrescente asserção para o que você mudou. Se o PR
 corrige um bug, deixe o teste na seção `REGRESSÃO:` reproduzindo-o.
+
+---
+
+## Licença
+
+[BSD Zero Clause](LICENSE) (0BSD).
+
+Use como quiser: copie, altere, publique, embuta num produto pago, tire meu nome.
+Não precisa pedir, não precisa citar a origem, não precisa manter aviso nenhum. A
+única coisa que o texto faz além de liberar tudo é dizer que o software vem sem
+garantia — o que protege quem escreveu sem atrapalhar quem usa.
+
+É a licença mais permissiva que continua tendo efeito jurídico no Brasil. Renúncias
+de domínio público como a Unlicense e a CC0 são mais frouxas no papel, mas a lei
+brasileira não permite abrir mão de direitos morais de autor, então elas ficam num
+terreno incerto aqui. A 0BSD chega ao mesmo resultado prático pelo caminho de uma
+licença comum, é aprovada pela OSI e reconhecida pelo SPDX.

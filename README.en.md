@@ -312,6 +312,23 @@ If the PR fixes a bug, leave the test in the `REGRESSÃO:` section reproducing i
 
 ---
 
+## License
+
+[BSD Zero Clause](LICENSE) (0BSD).
+
+Do whatever you want: copy it, change it, ship it, put it inside something you sell,
+take my name off it. No permission needed, no attribution needed, no notice to keep.
+The only thing the text does beyond granting everything is disclaim warranty — which
+protects the author without getting in the user's way.
+
+It is the most permissive licence that still holds up under Brazilian law, where the
+author lives. Public-domain dedications like the Unlicense and CC0 are looser on
+paper, but Brazilian law does not let an author waive moral rights, which leaves them
+on uncertain ground there. 0BSD reaches the same practical result through an ordinary
+licence, is OSI-approved and is recognised by SPDX.
+
+---
+
 ## Glossary
 
 Every term you will see on screen:
