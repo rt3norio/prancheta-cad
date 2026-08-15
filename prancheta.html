@@ -1,0 +1,2586 @@
+<title>Prancheta CAD</title>
+<style>
+  /* ---- tokens: light = cópia heliográfica positiva (vellum + grafite) ---- */
+  :root{
+    --ground:#E4E7E4;
+    --sheet:#F4F6F2;
+    --rail:#DBDFDB;
+    --edge:#BCC4BE;
+    --ink:#161C19;
+    --ink-2:#4A554E;
+    --ink-3:#7C877F;
+    --graphite:#2B3330;
+    --hatch:#C9D0CA;
+    --accent:#0C7488;
+    --accent-soft:#8FCBD6;
+    --on-fg:#F4F6F2;
+    --amber:#9A6200;
+    --danger:#9E2B1F;
+    --grid-1:#CBD2CC;
+    --grid-2:#B8C1BA;
+    --cross:#4A554E;
+    --paper-3d:#EDEFEB;
+    --f-disp:Bahnschrift,"DIN Condensed","DIN Alternate","Archivo Narrow","Roboto Condensed","Liberation Sans Narrow",system-ui,sans-serif;
+    --f-mono:Consolas,"SF Mono",Menlo,"DejaVu Sans Mono","Liberation Mono",monospace;
+  }
+  /* ---- dark = cianotipia (blueprint negativo) ---- */
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0A1521;
+      --sheet:#0D1D2C;
+      --rail:#0A1826;
+      --edge:#1E3548;
+      --ink:#DDE8F2;
+      --ink-2:#95AFC6;
+      --ink-3:#5F7C94;
+      --graphite:#C6DAEA;
+      --hatch:#274058;
+      --accent:#41C9DE;
+      --accent-soft:#1A5D6B;
+      --on-fg:#08131E;
+      --amber:#E5AE4B;
+      --danger:#E2685A;
+      --grid-1:#17293B;
+      --grid-2:#22405A;
+      --cross:#7D9CB6;
+      --paper-3d:#12283A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0A1521; --sheet:#0D1D2C; --rail:#0A1826; --edge:#1E3548;
+    --ink:#DDE8F2; --ink-2:#95AFC6; --ink-3:#5F7C94; --graphite:#C6DAEA;
+    --hatch:#274058; --accent:#41C9DE; --accent-soft:#1A5D6B; --amber:#E5AE4B;
+    --danger:#E2685A; --grid-1:#17293B; --grid-2:#22405A; --cross:#7D9CB6;
+    --paper-3d:#12283A; --on-fg:#08131E;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:var(--f-mono);font-size:13px;
+    height:100vh;overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{display:flex;flex-direction:column;height:100vh}
+
+  /* ---- top rail ---- */
+  .rail{
+    display:flex;align-items:stretch;gap:0;
+    background:var(--rail);border-bottom:1px solid var(--edge);
+    height:46px;flex:0 0 auto;overflow-x:auto;overflow-y:hidden;
+  }
+  .brand{
+    display:flex;align-items:baseline;gap:8px;padding:0 16px;
+    border-right:1px solid var(--edge);flex:0 0 auto;
+  }
+  .brand b{
+    font-family:var(--f-disp);font-weight:600;font-size:17px;
+    letter-spacing:.055em;text-transform:uppercase;
+  }
+  .brand span{font-size:10px;color:var(--ink-3);letter-spacing:.12em;text-transform:uppercase}
+  .grp{display:flex;align-items:center;gap:4px;padding:0 10px;border-right:1px solid var(--edge);flex:0 0 auto}
+  .grp>label{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-right:2px}
+  button{
+    font-family:var(--f-disp);font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;
+    background:transparent;color:var(--ink-2);border:1px solid transparent;
+    padding:5px 9px;cursor:pointer;border-radius:2px;
+  }
+  button:hover{color:var(--ink);border-color:var(--edge)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  button.on{background:var(--accent);color:var(--on-fg);border-color:var(--accent)}
+  .num{
+    font-family:var(--f-mono);font-size:12px;width:62px;
+    background:var(--sheet);color:var(--ink);border:1px solid var(--edge);
+    padding:4px 5px;border-radius:2px;font-variant-numeric:tabular-nums;
+  }
+  .num:focus{outline:1px solid var(--accent);outline-offset:0}
+  .spacer{flex:1 1 auto;border-right:none}
+
+  /* ---- stage ---- */
+  .stage{display:flex;flex:1 1 auto;min-height:0;background:var(--sheet);overflow:hidden}
+  .stage.drop{outline:2px dashed var(--accent);outline-offset:-6px}
+  .viewport{position:relative;flex:1 1 auto;min-width:0}
+  .viewport canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+
+  /* ---- coluna de ferramentas ---- */
+  .tools{
+    width:188px;flex:0 0 auto;background:var(--rail);border-right:1px solid var(--edge);
+    display:flex;flex-direction:column;overflow-y:auto;
+  }
+  .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:8px}
+  .toolbar button{
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:8px 2px 6px;font-size:9.5px;letter-spacing:.07em;border:1px solid transparent;
+  }
+  .toolbar button svg{
+    width:20px;height:20px;stroke:currentColor;fill:none;
+    stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;
+  }
+  .toolbar button:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--ink)}
+  .toolbar button.on{background:var(--accent);color:var(--on-fg);border-color:var(--accent)}
+  .toolbar .sep{grid-column:1/-1;height:1px;background:var(--edge);margin:4px 0}
+
+  /* ---- painel de propriedades ---- */
+  .props{border-top:1px solid var(--edge);padding:11px 10px;display:flex;flex-direction:column;gap:9px}
+  .props h3{
+    margin:0;font-family:var(--f-disp);font-size:10px;font-weight:600;
+    letter-spacing:.15em;text-transform:uppercase;color:var(--ink-3);
+  }
+  .props .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .props .row label{font-size:11.5px;color:var(--ink-2)}
+  .props .row .u{font-size:9.5px;color:var(--ink-3);margin-left:-4px}
+  .props input{
+    width:64px;background:var(--sheet);color:var(--ink);border:1px solid var(--edge);
+    border-radius:2px;padding:4px 5px;font-family:var(--f-mono);font-size:12px;
+    font-variant-numeric:tabular-nums;text-align:right;
+  }
+  .props input:focus{outline:1px solid var(--accent)}
+  .props .hint{font-size:10.5px;line-height:1.45;color:var(--ink-3)}
+  .props input[type="text"]{text-align:left;width:96px}
+  .props .del{
+    border:1px solid var(--edge);color:var(--danger);width:100%;justify-content:center;
+  }
+  .props .del:hover{border-color:var(--danger)}
+
+  /* ---- amostras de cor dos móveis ---- */
+  .swrow{display:flex;flex-direction:column;gap:6px}
+  .swlabel{font-size:11.5px;color:var(--ink-2)}
+  .sw{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+  .chip{
+    padding:0;height:20px;border-radius:2px;cursor:pointer;
+    border:1px solid color-mix(in srgb,var(--ink) 28%,transparent);
+  }
+  .chip:hover{transform:translateY(-1px)}
+  .chip.on{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* ---- tooltip ---- */
+  .tip{
+    position:fixed;z-index:40;max-width:270px;pointer-events:none;
+    background:var(--ink);color:var(--sheet);
+    padding:7px 10px;border-radius:3px;font-size:11.5px;line-height:1.45;
+    opacity:0;transition:opacity .11s ease;
+    box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 30%,transparent);
+  }
+  .tip.on{opacity:1}
+  @media (prefers-reduced-motion:reduce){.tip{transition:none}}
+  #cv3{display:none;z-index:0}
+  #cv{z-index:1;background:transparent;cursor:none}
+  #cv.orbit{cursor:grab}
+  .readout{
+    position:absolute;right:10px;top:10px;pointer-events:none;z-index:2;
+    display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+    font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-2);
+    background:color-mix(in srgb,var(--sheet) 82%,transparent);
+    padding:6px 9px;border:1px solid var(--edge);border-radius:2px;
+  }
+  .readout b{font-weight:400;color:var(--ink)}
+  .readout em{font-style:normal;color:var(--ink-3);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase}
+
+  /* ---- command console ---- */
+  .console{
+    flex:0 0 auto;background:var(--rail);border-top:1px solid var(--edge);
+    display:flex;flex-direction:column;
+  }
+  .hist{
+    height:74px;overflow-y:auto;padding:6px 12px;
+    font-size:11.5px;line-height:1.5;color:var(--ink-2);
+  }
+  .hist .cmd{color:var(--ink)}
+  .hist .err{color:var(--danger)}
+  .hist .ok{color:var(--accent)}
+  .prompt{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--edge)}
+  .prompt .pmt{
+    font-family:var(--f-disp);font-size:13px;letter-spacing:.06em;
+    color:var(--ink);white-space:nowrap;flex:0 0 auto;
+  }
+  .prompt input{
+    flex:1 1 auto;background:transparent;border:none;color:var(--ink);
+    font-family:var(--f-mono);font-size:13.5px;padding:2px 0;
+  }
+  .prompt input:focus{outline:none}
+  .prompt .caret{width:8px;height:15px;background:var(--accent);flex:0 0 auto;animation:blink 1.1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){.prompt .caret{animation:none}}
+
+  /* ---- sheet modal ---- */
+  .modal{
+    position:fixed;inset:0;background:color-mix(in srgb,var(--ground) 78%,transparent);
+    display:none;align-items:center;justify-content:center;padding:24px;z-index:20;
+  }
+  .modal.open{display:flex}
+  .card{
+    background:var(--sheet);border:1px solid var(--edge);border-radius:3px;
+    width:min(760px,100%);max-height:86vh;display:flex;flex-direction:column;
+    box-shadow:0 18px 48px color-mix(in srgb,var(--ink) 22%,transparent);
+  }
+  .card header{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 16px;border-bottom:1px solid var(--edge);
+  }
+  .card h2{
+    margin:0;font-family:var(--f-disp);font-size:16px;font-weight:600;
+    letter-spacing:.07em;text-transform:uppercase;
+  }
+  .card .body{padding:16px;overflow-y:auto}
+  .card textarea{
+    width:100%;height:280px;background:var(--ground);color:var(--ink);
+    border:1px solid var(--edge);border-radius:2px;padding:10px;
+    font-family:var(--f-mono);font-size:11.5px;line-height:1.45;resize:vertical;
+  }
+  .card footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--edge)}
+  .card footer button{border-color:var(--edge)}
+
+  /* ---- help table ---- */
+  table.help{border-collapse:collapse;width:100%;font-size:12px}
+  table.help caption{
+    text-align:left;font-family:var(--f-disp);font-size:11px;letter-spacing:.15em;
+    text-transform:uppercase;color:var(--ink-3);padding:14px 0 6px;
+  }
+  table.help td{padding:3px 10px 3px 0;vertical-align:top;border-bottom:1px solid var(--hatch)}
+  table.help td:first-child{width:150px;color:var(--accent);white-space:nowrap}
+  table.help tr:last-child td{border-bottom:none}
+</style>
+
+<div id="app">
+  <header class="rail">
+    <div class="brand"><b>Prancheta</b><span>cad web</span></div>
+
+    <div class="grp">
+      <button id="b2d" class="on" data-tip="Planta baixa em escala real: é onde você desenha.">2D</button>
+      <button id="b3d" data-tip="Vista tridimensional das paredes e móveis extrudados. Arrastar orbita, roda dá zoom. Só para conferir — não se desenha nela.">3D</button>
+    </div>
+
+    <div class="grp">
+      <label>modos</label>
+      <button id="bOrto" class="on" data-tip="Orto (F8): trava o traço em horizontal ou vertical. Ligado, um clique torto vira o ângulo reto mais próximo.">Orto</button>
+      <button id="bSnap" class="on" data-tip="Grade (F9): arredonda cada clique para o passo da grade, definido no painel ao lado. Garante medidas redondas.">Grade</button>
+      <button id="bOsnap" class="on" data-tip="OSnap (F3): gruda o cursor nas faces das paredes, nos cantos onde duas faces se encontram e nas arestas dos móveis — é assim que um móvel encosta na parede sem entrar nela. Ao desenhar paredes, a prioridade passa para o eixo, que é por onde a parede é traçada. Tem prioridade sobre a grade.">OSnap</button>
+      <button id="bCota" class="on" data-tip="Cotas automáticas: gera a medida de cada parede pelo lado de fora, mais as duas cotas gerais do contorno. Desligue para ver o desenho limpo.">Cotas</button>
+    </div>
+
+    <div class="grp">
+      <label>unid</label>
+      <button id="bUn" data-tip="Unidade de trabalho: vale para tudo que você digita, para os campos do painel e para o texto das cotas. Clique para alternar entre mm, cm e m.">cm</button>
+    </div>
+
+    <div class="grp spacer"></div>
+
+    <div class="grp" style="border-right:none">
+      <button id="bSalvar" data-tip="Grava o desenho num arquivo .json no seu computador. Onde o navegador permitir, abre o diálogo Salvar como; senão vai para a pasta de downloads.">Salvar</button>
+      <button id="bAbrir" data-tip="Escolhe um .json salvo antes e recarrega o desenho. Também dá para arrastar o arquivo direto sobre a planta.">Abrir</button>
+      <button id="bSvg" data-tip="Grava um .svg em escala 1:1, com 1 unidade do arquivo = 1 mm. Abre no Illustrator, Inkscape ou navegador.">SVG</button>
+      <button id="bNovo" data-tip="Descarta o desenho atual e começa em branco. Dá para desfazer com Ctrl+Z.">Novo</button>
+      <button id="bAjuda" data-tip="Lista completa de comandos, formatos de coordenada e atalhos.">Ajuda</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <aside class="tools">
+      <div class="toolbar" id="toolbar">
+        <button data-cmd="SEL" data-tip="Selecionar (Esc): clique num objeto para editar suas medidas no painel abaixo. Shift soma paredes à seleção.">
+          <svg viewBox="0 0 20 20"><path d="M5 3v13l3.2-3.6 2.1 4.3 1.9-.9-2.1-4.3 4.7-.2z"/></svg>Selec</button>
+        <button data-cmd="L" data-tip="Parede (L): clique ponto a ponto para uma cadeia de paredes. Enter ou botão direito encerra.">
+          <svg viewBox="0 0 20 20"><path d="M3 4h13v13"/><path d="M3 7.5h9.5V17"/></svg>Parede</button>
+        <button data-cmd="POR" data-tip="Porta (POR): clique sobre uma parede para abrir o vão no ponto clicado.">
+          <svg viewBox="0 0 20 20"><path d="M5 16V4"/><path d="M5 4a12 12 0 0 1 12 12"/><path d="M17 16H5"/></svg>Porta</button>
+        <button data-cmd="JAN" data-tip="Janela (JAN): clique sobre uma parede. O peitoril define a que altura ela começa.">
+          <svg viewBox="0 0 20 20"><path d="M3 6h14v8H3z"/><path d="M3 10h14"/></svg>Janela</button>
+        <button data-cmd="CX" data-tip="Móvel (CX): clique dois cantos opostos para criar uma caixa. Serve para mesa, cama, armário, bancada — com altura e cor próprias.">
+          <svg viewBox="0 0 20 20"><path d="M3 7h10v10H3z"/><path d="M3 7l4-4h10v10l-4 4"/><path d="M13 7l4-4"/></svg>Móvel</button>
+        <button data-cmd="DIM" data-tip="Cota manual (DIM): dois pontos a medir, depois um terceiro para posicionar a linha de cota. Depois de criada, clique sobre a linha para selecionar e ajustar o afastamento.">
+          <svg viewBox="0 0 20 20"><path d="M3 10h14"/><path d="M4.5 6.5l2.5 7"/><path d="M13 6.5l2.5 7"/></svg>Cota</button>
+        <button data-cmd="DI" data-tip="Medir (DI): informa distância, Δx, Δy e ângulo entre dois pontos, sem criar nada no desenho.">
+          <svg viewBox="0 0 20 20"><path d="M3 12.5l9.5-9.5 4 4-9.5 9.5z"/><path d="M6.5 9l1.5 1.5"/><path d="M9 6.5L10.5 8"/></svg>Medir</button>
+        <div class="sep"></div>
+        <button data-cmd="M" data-tip="Mover (M): escolha o objeto, um ponto base e o destino. Aceita coordenada digitada no destino.">
+          <svg viewBox="0 0 20 20"><path d="M10 3v14M3 10h14"/><path d="M8 5l2-2 2 2M8 15l2 2 2-2M5 8l-2 2 2 2M15 8l2 2-2 2"/></svg>Mover</button>
+        <button data-cmd="CO" data-tip="Copiar (CO): igual ao mover, mas mantém o original no lugar.">
+          <svg viewBox="0 0 20 20"><path d="M3 3h9v9H3z"/><path d="M8 8h9v9H8z"/></svg>Copiar</button>
+        <button data-cmd="E" data-tip="Apagar (E ou Delete): remove o que estiver selecionado, ou pede um objeto.">
+          <svg viewBox="0 0 20 20"><path d="M4 4l12 12M16 4L4 16"/></svg>Apagar</button>
+      </div>
+      <div class="props" id="props"></div>
+    </aside>
+
+    <div class="viewport">
+      <canvas id="cv3"></canvas>
+      <canvas id="cv"></canvas>
+      <div class="readout">
+        <div><em>x</em> <b id="rx">0</b> &nbsp; <em>y</em> <b id="ry">0</b></div>
+        <div id="rz"><em>esc</em> <b>1:100</b></div>
+        <div id="rsel"><em>sel</em> <b>0</b></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="console">
+    <div class="hist" id="hist"></div>
+    <div class="prompt">
+      <span class="pmt" id="pmt">Comando:</span>
+      <input id="cin" autocomplete="off" spellcheck="false" aria-label="Linha de comando">
+      <span class="caret"></span>
+    </div>
+  </footer>
+</div>
+
+<div class="modal" id="modal">
+  <div class="card">
+    <header><h2 id="mTitle">Título</h2><button id="mClose">Fechar</button></header>
+    <div class="body" id="mBody"></div>
+    <footer id="mFoot"></footer>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================ *
+ *  Prancheta CAD — editor de planta baixa 2D + vista 3D
+ *  Unidade interna: milímetro. Unidade de trabalho: CFG.unit.
+ * ============================================================ */
+
+/* ---------------- configuração ---------------- */
+const CFG = {
+  unit:'cm', uf:10,          // uf = mm por unidade de trabalho
+  wallT:150, wallH:2800,     // espessura / pé-direito (mm)
+  grid:100,                  // passo da grade (mm)
+  ortho:true, snapGrid:true, osnap:true, autoDim:true,
+  doorW:800, doorH:2100,
+  winW:1200, winH:1200, winSill:900
+};
+const UNITS = {mm:{f:1,dec:0}, cm:{f:10,dec:0}, m:{f:1000,dec:2}};
+
+/* paleta pastel dos móveis — tons de luminância parecida, para diferenciar
+   por matiz sem que nenhum deles domine o desenho */
+const PALETA = [
+  {n:'Névoa',     c:'#BCD2E0'},
+  {n:'Sálvia',    c:'#C3D8BC'},
+  {n:'Areia',     c:'#E8D9B5'},
+  {n:'Terracota', c:'#DFBBA4'},
+  {n:'Rosa',      c:'#E6C6C1'},
+  {n:'Lilás',     c:'#D2C6E0'},
+  {n:'Musgo',     c:'#C9D2A6'},
+  {n:'Pedra',     c:'#D2D6D1'}
+];
+CFG.boxH = 750; CFG.boxZ = 0; CFG.boxColor = PALETA[0].c;
+
+/* ---------------- modelo ---------------- */
+let M = {walls:[], ops:[], dims:[], boxes:[], seq:1};
+let sel = new Set();       // ids de paredes selecionadas
+let selOp = null;          // id do vão selecionado
+let selBox = null;         // id do móvel selecionado
+let selDim = null;         // id da cota manual selecionada
+const undoStack = [], redoStack = [];
+
+/* ---------------- viewport ---------------- */
+const view = {x:0, y:0, z:0.06};      // z = px por mm
+let mode = '2d';
+const cam = {az:-0.85, el:0.42, r:14000, tx:0, ty:0, tz:1200, init:false};
+
+/* ---------------- DOM ---------------- */
+const cv = document.getElementById('cv');
+const cv3 = document.getElementById('cv3');
+const ctx = cv.getContext('2d');
+const cin = document.getElementById('cin');
+const pmt = document.getElementById('pmt');
+const histEl = document.getElementById('hist');
+let CW = 0, CH = 0, DPR = 1;
+
+/* ---------------- utilidades numéricas ---------------- */
+const U = {
+  toMM: v => v * CFG.uf,
+  toU:  v => v / CFG.uf,
+  fmt:  v => {
+    const d = UNITS[CFG.unit].dec;
+    return (v / CFG.uf).toFixed(d).replace('.', ',');
+  }
+};
+const dist = (a,b) => Math.hypot(b.x-a.x, b.y-a.y);
+const uniqSort = a => [...new Set(a.map(v=>Math.round(v*1e3)/1e3))].sort((p,q)=>p-q);
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+
+function segDist(p, a, b){
+  const dx=b.x-a.x, dy=b.y-a.y, L2=dx*dx+dy*dy;
+  if(L2 < 1e-9) return dist(p,a);
+  let t = ((p.x-a.x)*dx + (p.y-a.y)*dy)/L2;
+  t = clamp(t,0,1);
+  return Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy));
+}
+function projOnSeg(p,a,b){
+  const dx=b.x-a.x, dy=b.y-a.y, L2=dx*dx+dy*dy;
+  if(L2 < 1e-9) return 0;
+  return clamp(((p.x-a.x)*dx + (p.y-a.y)*dy)/L2, 0, 1);
+}
+
+/* ---------------- transformação de coordenadas ---------------- */
+const W2S = p => ({x:(p.x-view.x)*view.z + CW/2, y:CH/2 - (p.y-view.y)*view.z});
+const S2W = p => ({x:(p.x-CW/2)/view.z + view.x, y:(CH/2-p.y)/view.z + view.y});
+
+/* ---------------- histórico ---------------- */
+function log(msg, cls){
+  const d = document.createElement('div');
+  if(cls) d.className = cls;
+  d.textContent = msg;
+  histEl.appendChild(d);
+  while(histEl.children.length > 220) histEl.removeChild(histEl.firstChild);
+  histEl.scrollTop = histEl.scrollHeight;
+}
+const docState = () => JSON.stringify({walls:M.walls, ops:M.ops, dims:M.dims, boxes:M.boxes, seq:M.seq});
+function snapshot(){
+  undoStack.push(docState());
+  if(undoStack.length > 120) undoStack.shift();
+  redoStack.length = 0;
+  persist();
+}
+function restore(from, to){
+  if(!from.length) return false;
+  to.push(docState());
+  const s = JSON.parse(from.pop());
+  M.walls = s.walls; M.ops = s.ops; M.dims = s.dims; M.boxes = s.boxes || []; M.seq = s.seq;
+  sel.clear(); selOp = null; selBox = null; selDim = null;
+  dirty3d = true; persist(); syncTools(); draw();
+  return true;
+}
+function persist(){
+  try{ localStorage.setItem('prancheta.doc', JSON.stringify(M)); }catch(e){}
+}
+function loadPersisted(){
+  try{
+    const s = localStorage.getItem('prancheta.doc');
+    if(!s) return false;
+    const d = JSON.parse(s);
+    if(!d || !Array.isArray(d.walls) || !d.walls.length) return false;
+    M = {walls:d.walls, ops:d.ops||[], dims:d.dims||[], boxes:d.boxes||[], seq:d.seq||1};
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------------- construção do modelo ---------------- */
+function addWall(a, b){
+  if(dist(a,b) < 1) return null;
+  const w = {id:M.seq++, ax:a.x, ay:a.y, bx:b.x, by:b.y, t:CFG.wallT, h:CFG.wallH};
+  M.walls.push(w); dirty3d = true;
+  return w;
+}
+function wallLen(w){ return Math.hypot(w.bx-w.ax, w.by-w.ay); }
+function wallDir(w){ const L=wallLen(w)||1; return {x:(w.bx-w.ax)/L, y:(w.by-w.ay)/L}; }
+function wallNorm(w){ const u=wallDir(w); return {x:-u.y, y:u.x}; }
+function opsOf(w){ return M.ops.filter(o => o.w === w.id); }
+function removeWalls(ids){
+  M.walls = M.walls.filter(w => !ids.has(w.id));
+  M.ops   = M.ops.filter(o => !ids.has(o.w));
+  if(selOp && !M.ops.some(o => o.id === selOp)) selOp = null;
+  dirty3d = true;
+}
+function bbox(){
+  if(!M.walls.length) return null;
+  let x0=1e12,y0=1e12,x1=-1e12,y1=-1e12;
+  for(const w of M.walls){
+    const h = w.t/2;
+    x0=Math.min(x0,w.ax-h,w.bx-h); x1=Math.max(x1,w.ax+h,w.bx+h);
+    y0=Math.min(y0,w.ay-h,w.by-h); y1=Math.max(y1,w.ay+h,w.by+h);
+  }
+  return {x0,y0,x1,y1};
+}
+function centroid(){
+  let sx=0, sy=0, sl=0;
+  for(const w of M.walls){
+    const L = wallLen(w);
+    sx += (w.ax+w.bx)/2*L; sy += (w.ay+w.by)/2*L; sl += L;
+  }
+  return sl ? {x:sx/sl, y:sy/sl} : {x:0, y:0};
+}
+/* vãos livres (spans sólidos ao nível do piso) de uma parede */
+function solidSpans(w){
+  const L = wallLen(w);
+  const cuts = opsOf(w).map(o => [clamp(o.d-o.wid/2,0,L), clamp(o.d+o.wid/2,0,L)])
+                       .filter(s => s[1] > s[0])
+                       .sort((a,b) => a[0]-b[0]);
+  const out = []; let p = 0;
+  for(const [c0,c1] of cuts){ if(c0 > p) out.push([p,c0]); p = Math.max(p,c1); }
+  if(p < L) out.push([p,L]);
+  return out;
+}
+
+/* ---------------- snap ---------------- */
+let cur = {x:0, y:0}, curRaw = {x:0, y:0}, snapInfo = null, hover = null;
+
+/* interseção de dois segmentos, ou null se forem paralelos ou se cruzarem fora deles */
+function segInter(L1, L2){
+  const x1=L1.a.x, y1=L1.a.y, x2=L1.b.x, y2=L1.b.y;
+  const x3=L2.a.x, y3=L2.a.y, x4=L2.b.x, y4=L2.b.y;
+  const den = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+  if(Math.abs(den) < 1e-9) return null;
+  const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / den;
+  const u = ((x1-x3)*(y1-y2) - (y1-y3)*(x1-x2)) / den;
+  if(t < -1e-3 || t > 1+1e-3 || u < -1e-3 || u > 1+1e-3) return null;
+  return {x: x1 + t*(x2-x1), y: y1 + t*(y2-y1)};
+}
+
+/* linhas que o osnap enxerga: o eixo da parede (para encadear paredes) e as
+   duas faces (para encostar móveis, que é onde a alvenaria realmente termina) */
+function snapLines(){
+  const out = [];
+  for(const w of M.walls){
+    if(wallLen(w) < 1) continue;
+    out.push({a:{x:w.ax, y:w.ay}, b:{x:w.bx, y:w.by}, tipo:'eixo'});
+    const n = wallNorm(w), h = w.t/2;
+    for(const s of [1,-1])
+      out.push({a:{x:w.ax + n.x*h*s, y:w.ay + n.y*h*s},
+                b:{x:w.bx + n.x*h*s, y:w.by + n.y*h*s}, tipo:'face'});
+  }
+  for(const b of M.boxes){
+    const c = boxCorners(b);
+    for(let i=0;i<4;i++) out.push({a:c[i], b:c[(i+1)%4], tipo:'face'});
+  }
+  return out;
+}
+
+/* um ponto na miolo da alvenaria não serve para encostar nada — a face de uma
+   parede termina crua dentro da parede vizinha, e essa ponta não é um alvo útil */
+function dentroDeParede(p){
+  for(const w of M.walls){
+    const L = wallLen(w); if(L < 1) continue;
+    const u = wallDir(w), n = wallNorm(w);
+    const rx = p.x - w.ax, ry = p.y - w.ay;
+    const d = rx*u.x + ry*u.y, s = rx*n.x + ry*n.y;
+    if(d >= -1 && d <= L + 1 && Math.abs(s) < w.t/2 - 1) return true;
+  }
+  return false;
+}
+
+function snapPoint(sw, base){
+  snapInfo = null;
+  const tol = 14 / view.z;
+  if(CFG.osnap){
+    // desenhando parede, o eixo manda; em qualquer outro caso, a face
+    const eixoManda = !!(AC && AC.spec.key === 'L');
+    const pEnd = eixoManda ? {eixo:0, face:1} : {eixo:2, face:0};
+    const pMid = eixoManda ? {eixo:1, face:2} : {eixo:3, face:1};
+
+    let best = null;
+    const consider = (p, kind, cls) => {
+      const d = dist(sw, p);
+      if(d > tol) return;
+      if(!eixoManda && dentroDeParede(p)) return;
+      if(!best || cls < best.cls || (cls === best.cls && d < best.d)) best = {p, kind, cls, d};
+    };
+
+    const lines = snapLines(), perto = [];
+    for(const L of lines){
+      const ext = L.tipo === 'face' ? 'canto' : 'ext';
+      consider(L.a, ext, pEnd[L.tipo]);
+      consider(L.b, ext, pEnd[L.tipo]);
+      consider({x:(L.a.x+L.b.x)/2, y:(L.a.y+L.b.y)/2}, 'meio', pMid[L.tipo]);
+      if(segDist(sw, L.a, L.b) <= tol) perto.push(L);
+    }
+    // cantos de cômodo: onde duas faces se encontram
+    for(let i=0;i<perto.length;i++) for(let j=i+1;j<perto.length;j++){
+      if(perto[i].tipo !== 'face' || perto[j].tipo !== 'face') continue;
+      const p = segInter(perto[i], perto[j]);
+      if(p) consider(p, 'inter', eixoManda ? 1 : 0);
+    }
+    // por último, o ponto mais próximo sobre a linha
+    for(const L of perto){
+      const t = projOnSeg(sw, L.a, L.b);
+      consider({x:L.a.x + (L.b.x-L.a.x)*t, y:L.a.y + (L.b.y-L.a.y)*t},
+               L.tipo === 'face' ? 'face' : 'eixo', 4);
+    }
+    if(best){ snapInfo = best.kind; return best.p; }
+  }
+  let p = {x:sw.x, y:sw.y};
+  if(CFG.ortho && base){
+    if(Math.abs(p.x-base.x) > Math.abs(p.y-base.y)) p.y = base.y; else p.x = base.x;
+    snapInfo = 'orto';
+  }
+  if(CFG.snapGrid){
+    const g = CFG.grid;
+    if(!(CFG.ortho && base)){
+      p = {x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g};
+    }else if(Math.abs(p.x-base.x) > Math.abs(p.y-base.y)){
+      p.x = Math.round(p.x/g)*g;
+    }else{
+      p.y = Math.round(p.y/g)*g;
+    }
+    if(!snapInfo) snapInfo = 'grade';
+  }
+  return p;
+}
+
+/* ---------------- parser de coordenadas ---------------- */
+function parsePoint(s, base){
+  s = s.trim().replace(/\s+/g,'').replace(/,(?=\d+[,<])/g, ',');
+  if(!s) return null;
+  let rel = false;
+  if(s[0] === '@'){ rel = true; s = s.slice(1); }
+  const num = t => { const v = parseFloat(t.replace(',','.')); return isNaN(v) ? null : v; };
+
+  if(s.includes('<')){                                     // polar  d<ang
+    const [ds, as] = s.split('<');
+    const d = num(ds), a = num(as);
+    if(d === null || a === null) return null;
+    const r = a * Math.PI/180, mmv = U.toMM(d);
+    const o = rel ? (base || {x:0,y:0}) : {x:0,y:0};
+    return {x:o.x + mmv*Math.cos(r), y:o.y + mmv*Math.sin(r)};
+  }
+  const parts = s.split(/[;]/);
+  if(parts.length === 1 && s.includes(',') && /^-?[\d.,]+$/.test(s)){
+    // ambíguo: "300,50" cartesiano vs "3,5" decimal — vírgula separa eixos
+    const seg = s.split(',');
+    if(seg.length === 2){
+      const x = num(seg[0]), y = num(seg[1]);
+      if(x !== null && y !== null){
+        const o = rel ? (base || {x:0,y:0}) : {x:0,y:0};
+        return {x:o.x + U.toMM(x), y:o.y + U.toMM(y)};
+      }
+    }
+  }
+  if(/^-?[\d.]+$/.test(s)){                                // entrada direta de distância
+    const d = num(s);
+    if(d === null || !base) return null;
+    let dir = {x:curRaw.x-base.x, y:curRaw.y-base.y};
+    if(CFG.ortho){
+      if(Math.abs(dir.x) > Math.abs(dir.y)) dir = {x:Math.sign(dir.x)||1, y:0};
+      else dir = {x:0, y:Math.sign(dir.y)||1};
+    }else{
+      const L = Math.hypot(dir.x,dir.y) || 1; dir = {x:dir.x/L, y:dir.y/L};
+    }
+    const mmv = U.toMM(d);
+    return {x:base.x + dir.x*mmv, y:base.y + dir.y*mmv};
+  }
+  return null;
+}
+
+/* ============================================================ *
+ *  Comandos
+ * ============================================================ */
+let AC = null;          // comando ativo
+let lastCmd = '';
+const CMDS = {};
+function defc(names, spec){
+  spec.key = names[0];
+  for(const n of names) CMDS[n.toUpperCase()] = spec;
+}
+function setPrompt(t){ pmt.textContent = t; }
+function endCmd(msg){
+  if(msg) log(msg);
+  AC = null; setPrompt('Comando:'); syncTools(); draw();
+}
+function startCmd(name, arg){
+  const spec = CMDS[name.toUpperCase()];
+  if(!spec){ log('Comando desconhecido: ' + name, 'err'); return; }
+  lastCmd = spec.key;
+  AC = {spec, step:0, pts:[], data:{}};
+  log(name.toUpperCase() + (arg ? ' ' + arg : ''), 'cmd');
+  spec.start(AC, arg);
+  syncTools();
+  draw();
+}
+function feedPoint(p){
+  if(!AC || !AC.spec.point) return false;
+  AC.spec.point(AC, p);
+  draw();
+  return true;
+}
+function basePoint(){ return AC && AC.pts.length ? AC.pts[AC.pts.length-1] : null; }
+
+/* --- PAREDE (linha encadeada) --- */
+defc(['L','LINHA','PAREDE'], {
+  start(c){ setPrompt('Parede — primeiro ponto:'); },
+  point(c,p){
+    if(c.pts.length === 0){ c.pts.push(p); snapshot(); setPrompt('Próximo ponto (Enter finaliza):'); return; }
+    const a = c.pts[c.pts.length-1];
+    const w = addWall(a,p);
+    if(w) log('  parede ' + U.fmt(wallLen(w)) + ' ' + CFG.unit);
+    c.pts.push(p);
+    setPrompt('Próximo ponto (Enter finaliza):');
+  },
+  enter(c){ endCmd('  fim'); },
+  preview(c){
+    const a = basePoint();
+    if(!a) return;
+    ghostWall(a, cur);
+  }
+});
+
+/* --- APAGAR --- */
+defc(['E','APAGAR','DEL'], {
+  start(c){
+    if(selOp){ snapshot(); M.ops = M.ops.filter(o => o.id !== selOp); selOp = null; dirty3d = true; endCmd('  vão apagado'); return; }
+    if(selBox){ snapshot(); M.boxes = M.boxes.filter(b => b.id !== selBox); selBox = null; dirty3d = true; endCmd('  móvel apagado'); return; }
+    if(selDim){ snapshot(); M.dims = M.dims.filter(d => d.id !== selDim); selDim = null; endCmd('  cota apagada'); return; }
+    if(sel.size){ const n = sel.size; snapshot(); removeWalls(new Set(sel)); sel.clear(); endCmd('  ' + n + ' parede(s) apagada(s)'); return; }
+    setPrompt('Apagar — clique na parede, no vão, no móvel ou na cota:');
+  },
+  point(c,p){
+    const o = pickOpening(p);
+    if(o){ snapshot(); M.ops = M.ops.filter(v => v.id !== o.id); dirty3d = true; log('  vão apagado'); return; }
+    const dm = pickDim(p);
+    if(dm){ snapshot(); M.dims = M.dims.filter(v => v.id !== dm.id); log('  cota apagada'); return; }
+    const bx = pickBox(p);
+    if(bx){ snapshot(); M.boxes = M.boxes.filter(v => v.id !== bx.id); dirty3d = true; log('  móvel apagado'); return; }
+    const w = pickWall(p);
+    if(!w){ log('  nada encontrado'); return; }
+    snapshot(); removeWalls(new Set([w.id]));
+    log('  parede apagada');
+  }
+});
+
+/* --- MOVER / COPIAR --- */
+function moveSpec(copy){
+  return {
+    start(c){
+      c.data.ids = new Set(); c.data.boxIds = new Set(); c.data.dimIds = new Set();
+      if(selBox){ c.data.boxIds.add(selBox); setPrompt('Ponto base:'); return; }
+      if(selDim){ c.data.dimIds.add(selDim); setPrompt('Ponto base:'); return; }
+      if(sel.size){ c.data.ids = new Set(sel); setPrompt('Ponto base:'); return; }
+      setPrompt((copy?'Copiar':'Mover') + ' — clique no objeto:'); c.data.pick = true;
+    },
+    point(c,p){
+      if(c.data.pick){
+        const dm = pickDim(p);
+        const bx = dm ? null : pickBox(p);
+        if(dm) c.data.dimIds.add(dm.id);
+        else if(bx) c.data.boxIds.add(bx.id);
+        else{
+          const w = pickWall(p);
+          if(!w){ log('  nada encontrado'); return; }
+          c.data.ids.add(w.id);
+        }
+        c.data.pick = false;
+        setPrompt('Ponto base:'); return;
+      }
+      if(!c.pts.length){ c.pts.push(p); setPrompt('Segundo ponto:'); return; }
+      const dx = p.x - c.pts[0].x, dy = p.y - c.pts[0].y;
+      snapshot();
+      if(copy){
+        const map = new Map();
+        for(const id of c.data.ids){
+          const w = M.walls.find(v => v.id === id); if(!w) continue;
+          const n = {...w, id:M.seq++, ax:w.ax+dx, ay:w.ay+dy, bx:w.bx+dx, by:w.by+dy};
+          M.walls.push(n); map.set(id, n.id);
+        }
+        for(const o of [...M.ops]) if(map.has(o.w)) M.ops.push({...o, id:M.seq++, w:map.get(o.w)});
+        for(const id of c.data.boxIds){
+          const b = M.boxes.find(v => v.id === id); if(!b) continue;
+          M.boxes.push({...b, id:M.seq++, x:b.x+dx, y:b.y+dy});
+        }
+        for(const id of c.data.dimIds){
+          const d = M.dims.find(v => v.id === id); if(!d) continue;
+          M.dims.push({...d, id:M.seq++, ax:d.ax+dx, ay:d.ay+dy, bx:d.bx+dx, by:d.by+dy});
+        }
+      }else{
+        for(const id of c.data.ids){
+          const w = M.walls.find(v => v.id === id); if(!w) continue;
+          w.ax += dx; w.ay += dy; w.bx += dx; w.by += dy;
+        }
+        for(const id of c.data.boxIds){
+          const b = M.boxes.find(v => v.id === id); if(!b) continue;
+          b.x += dx; b.y += dy;
+        }
+        for(const id of c.data.dimIds){
+          const d = M.dims.find(v => v.id === id); if(!d) continue;
+          d.ax += dx; d.ay += dy; d.bx += dx; d.by += dy;
+        }
+      }
+      dirty3d = true;
+      endCmd('  ' + (copy?'copiado':'movido') + ' ' + U.fmt(Math.hypot(dx,dy)) + ' ' + CFG.unit);
+    },
+    preview(c){
+      if(c.pts.length !== 1) return;
+      const dx = cur.x-c.pts[0].x, dy = cur.y-c.pts[0].y;
+      ctx.save(); ctx.setLineDash([5,4]); ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.2;
+      for(const id of (c.data.ids || [])){
+        const w = M.walls.find(v => v.id === id); if(!w) continue;
+        const A = W2S({x:w.ax+dx, y:w.ay+dy}), B = W2S({x:w.bx+dx, y:w.by+dy});
+        ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+      }
+      for(const id of (c.data.boxIds || [])){
+        const b = M.boxes.find(v => v.id === id); if(!b) continue;
+        tracePoly(boxCorners({...b, x:b.x+dx, y:b.y+dy}).map(W2S)); ctx.stroke();
+      }
+      for(const id of (c.data.dimIds || [])){
+        const d = M.dims.find(v => v.id === id); if(!d) continue;
+        const l = dimLine({...d, ax:d.ax+dx, ay:d.ay+dy, bx:d.bx+dx, by:d.by+dy});
+        const A = W2S(l.a), B = W2S(l.b);
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+}
+defc(['M','MOVER'], moveSpec(false));
+defc(['CO','COPIAR','COPY'], moveSpec(true));
+
+/* --- PORTA / JANELA --- */
+function openingSpec(kind){
+  return {
+    start(c,arg){
+      c.data.wid = arg ? U.toMM(parseFloat(arg.replace(',','.'))) : (kind==='porta'?CFG.doorW:CFG.winW);
+      if(!c.data.wid || isNaN(c.data.wid)) c.data.wid = kind==='porta'?CFG.doorW:CFG.winW;
+      setPrompt(kind==='porta'?'Porta — clique na parede:':'Janela — clique na parede:');
+    },
+    point(c,p){
+      const w = pickWall(p);
+      if(!w){ log('  clique sobre uma parede', 'err'); return; }
+      const L = wallLen(w);
+      const t = projOnSeg(p, {x:w.ax,y:w.ay}, {x:w.bx,y:w.by});
+      const d = clamp(t*L, c.data.wid/2, L - c.data.wid/2);
+      if(L < c.data.wid){ log('  parede curta demais', 'err'); return; }
+      snapshot();
+      M.ops.push({
+        id:M.seq++, w:w.id, d, wid:c.data.wid, kind,
+        h: kind==='porta'?CFG.doorH:CFG.winH,
+        sill: kind==='porta'?0:CFG.winSill
+      });
+      dirty3d = true;
+      log('  ' + kind + ' ' + U.fmt(c.data.wid) + ' ' + CFG.unit + ' @ ' + U.fmt(d));
+    }
+  };
+}
+defc(['POR','PORTA'], openingSpec('porta'));
+defc(['JAN','JANELA'], openingSpec('janela'));
+
+/* --- MÓVEL: caixa por dois cantos --- */
+defc(['CX','CAIXA','MOVEL','MOB'], {
+  start(c){ setPrompt('Móvel — primeiro canto:'); },
+  point(c,p){
+    if(!c.pts.length){ c.pts.push(p); setPrompt('Canto oposto:'); return; }
+    const a = c.pts[0];
+    const w = Math.abs(p.x-a.x), d = Math.abs(p.y-a.y);
+    if(w < 10 || d < 10){ log('  arraste maior: a caixa ficou sem área', 'err'); return; }
+    snapshot();
+    const b = {id:M.seq++, x:(a.x+p.x)/2, y:(a.y+p.y)/2, w, d, rot:0,
+               h:CFG.boxH, z:CFG.boxZ, color:CFG.boxColor, nome:''};
+    M.boxes.push(b);
+    selBox = b.id; sel.clear(); selOp = null;
+    dirty3d = true;
+    endCmd('  móvel ' + U.fmt(w) + ' × ' + U.fmt(d) + ' × ' + U.fmt(b.h) + ' ' + CFG.unit);
+  },
+  preview(c){
+    if(c.pts.length !== 1) return;
+    const a = c.pts[0], A = W2S(a), B = W2S(cur);
+    const x = Math.min(A.x,B.x), y = Math.min(A.y,B.y);
+    const w = Math.abs(B.x-A.x), h = Math.abs(B.y-A.y);
+    ctx.save();
+    ctx.fillStyle = CFG.boxColor; ctx.globalAlpha = .45;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = css('--accent'); ctx.setLineDash([5,4]); ctx.lineWidth = 1.2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    const txt = U.fmt(Math.abs(cur.x-a.x)) + ' × ' + U.fmt(Math.abs(cur.y-a.y)) + ' ' + CFG.unit;
+    ctx.font = '600 11.5px ' + css('--f-disp');
+    const tw = ctx.measureText(txt).width;
+    ctx.fillStyle = css('--rail');
+    ctx.fillRect(B.x+14, B.y+10, tw+12, 19);
+    ctx.strokeStyle = css('--edge'); ctx.lineWidth = 1;
+    ctx.strokeRect(B.x+14.5, B.y+10.5, tw+11, 18);
+    ctx.fillStyle = css('--ink'); ctx.textBaseline = 'middle';
+    ctx.fillText(txt, B.x+20, B.y+20);
+    ctx.restore();
+  }
+});
+defc(['COR'], {start(c,a){
+  const i = parseInt(a, 10);
+  if(i >= 1 && i <= PALETA.length){
+    CFG.boxColor = PALETA[i-1].c;
+    if(selBox){ const b = M.boxes.find(v => v.id === selBox); if(b){ snapshot(); b.color = CFG.boxColor; dirty3d = true; persist(); } }
+    endCmd('  cor = ' + PALETA[i-1].n);
+  }else{
+    endCmd('  uso: COR 1..' + PALETA.length + ' — ' + PALETA.map((p,k) => (k+1) + ' ' + p.n).join(', '));
+  }
+}});
+
+/* --- COTA manual --- */
+defc(['DIM','COTAR'], {
+  start(c){ setPrompt('Cota — primeira extremidade:'); },
+  point(c,p){
+    c.pts.push(p);
+    if(c.pts.length === 1){ setPrompt('Segunda extremidade:'); return; }
+    if(c.pts.length === 2){ setPrompt('Posição da linha de cota:'); return; }
+    const [a,b,o] = c.pts;
+    const L = dist(a,b) || 1;
+    const n = {x:-(b.y-a.y)/L, y:(b.x-a.x)/L};
+    const off = (o.x-a.x)*n.x + (o.y-a.y)*n.y;
+    snapshot();
+    const nd = {id:M.seq++, ax:a.x, ay:a.y, bx:b.x, by:b.y, off};
+    M.dims.push(nd);
+    sel.clear(); selOp = null; selBox = null; selDim = nd.id;
+    endCmd('  cota ' + U.fmt(L) + ' ' + CFG.unit);
+  },
+  preview(c){
+    if(c.pts.length >= 1){
+      const a = c.pts[0], b = c.pts.length >= 2 ? c.pts[1] : cur;
+      ctx.save(); ctx.strokeStyle = css('--accent'); ctx.setLineDash([4,3]); ctx.lineWidth = 1;
+      const A = W2S(a), B = W2S(b);
+      ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke(); ctx.restore();
+    }
+  }
+});
+
+/* --- DISTÂNCIA --- */
+defc(['DI','DIST'], {
+  start(c){ setPrompt('Distância — primeiro ponto:'); },
+  point(c,p){
+    c.pts.push(p);
+    if(c.pts.length === 1){ setPrompt('Segundo ponto:'); return; }
+    const [a,b] = c.pts;
+    const d = dist(a,b);
+    const ang = Math.atan2(b.y-a.y, b.x-a.x)*180/Math.PI;
+    endCmd('  dist = ' + U.fmt(d) + ' ' + CFG.unit +
+           '   Δx = ' + U.fmt(b.x-a.x) + '   Δy = ' + U.fmt(b.y-a.y) +
+           '   ang = ' + ang.toFixed(2) + '°');
+  },
+  preview(c){
+    if(c.pts.length === 1) ghostLine(c.pts[0], cur);
+  }
+});
+
+/* --- comandos imediatos --- */
+defc(['Z','ZOOM'],  {start(){ zoomExtents(); endCmd('  zoom estendido'); }});
+defc(['U','DESFAZER'], {start(){ restore(undoStack, redoStack) ? endCmd('  desfeito') : endCmd('  nada a desfazer'); }});
+defc(['RE','REFAZER'], {start(){ restore(redoStack, undoStack) ? endCmd('  refeito') : endCmd('  nada a refazer'); }});
+defc(['3D'], {start(){ setMode(mode === '3d' ? '2d' : '3d'); endCmd('  vista ' + mode.toUpperCase()); }});
+defc(['ESP'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); endCmd('  espessura = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ESP <valor>'); }});
+defc(['ALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); endCmd('  pé-direito = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ALT <valor>'); }});
+defc(['PALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); endCmd('  altura de porta = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PALT <valor>'); }});
+defc(['JALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.winH = U.toMM(v); endCmd('  altura de janela = ' + v + ' ' + CFG.unit); } else endCmd('  uso: JALT <valor>'); }});
+defc(['PEIT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>=0){ CFG.winSill = U.toMM(v); endCmd('  peitoril = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PEIT <valor>'); }});
+defc(['GRADE','GRID'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.grid = U.toMM(v); endCmd('  grade = ' + v + ' ' + CFG.unit); } else { CFG.snapGrid = !CFG.snapGrid; syncUI(); endCmd('  snap grade ' + (CFG.snapGrid?'ON':'OFF')); } }});
+defc(['ORTO','F8'], {start(){ CFG.ortho = !CFG.ortho; syncUI(); endCmd('  orto ' + (CFG.ortho?'ON':'OFF')); }});
+defc(['OSNAP','F3'], {start(){ CFG.osnap = !CFG.osnap; syncUI(); endCmd('  osnap ' + (CFG.osnap?'ON':'OFF')); }});
+defc(['COTA','COTAS'], {start(){ CFG.autoDim = !CFG.autoDim; syncUI(); endCmd('  cotas automáticas ' + (CFG.autoDim?'ON':'OFF')); }});
+defc(['UN','UNID'], {start(c,a){ const u = (a||'').toLowerCase(); if(UNITS[u]){ setUnit(u); endCmd('  unidade = ' + u); } else endCmd('  uso: UN mm | cm | m'); }});
+defc(['NOVO','NEW'], {start(){ if(M.walls.length || M.boxes.length) snapshot(); M.walls=[]; M.ops=[]; M.dims=[]; M.boxes=[]; sel.clear(); selOp=null; selBox=null; selDim=null; dirty3d=true; persist(); endCmd('  desenho novo'); }});
+defc(['SALVAR','SAVE'], {start(){ salvarJSON(); endCmd(); }});
+defc(['ABRIR','OPEN'], {start(){ abrirJSON(); endCmd(); }});
+defc(['SVG'], {start(){ salvarSVG(); endCmd(); }});
+defc(['JSON'], {start(){ dlgSave(); endCmd(); }});
+defc(['COLAR'], {start(){ dlgOpen(); endCmd(); }});
+defc(['AJUDA','?','HELP'], {start(){ dlgHelp(); endCmd(); }});
+defc(['EXEMPLO','DEMO'], {start(){ snapshot(); demo(); zoomExtents(); endCmd('  exemplo carregado'); }});
+
+/* ---------------- seleção ---------------- */
+/* geometria do símbolo da porta: dobradiça e ponta da folha */
+function doorLeaf(w, o){
+  const u = wallDir(w), n = wallNorm(w);
+  const h = {x: w.ax + u.x*(o.d - o.wid/2), y: w.ay + u.y*(o.d - o.wid/2)};
+  return {h, end: {x: h.x + n.x*o.wid, y: h.y + n.y*o.wid}, u, n};
+}
+/* A porta é um vão vazio; o que se vê é a folha e o arco de abertura, ambos fora
+   da parede. Sem incluí-los na área sensível, só o retângulo do vão seria clicável. */
+function pickOpening(p){
+  const tolVao = 9/view.z, tolSimb = 6/view.z;
+  let best = null, bd = Infinity;
+  for(const o of M.ops){
+    const w = M.walls.find(v => v.id === o.w); if(!w) continue;
+    const u = wallDir(w), n = wallNorm(w);
+    const rx = p.x - w.ax, ry = p.y - w.ay;
+    const d = rx*u.x + ry*u.y, s = rx*n.x + ry*n.y;
+
+    const dd = Math.max(0, Math.abs(d - o.d) - o.wid/2);
+    const ds = Math.max(0, Math.abs(s) - w.t/2);
+    let dist = Math.hypot(dd, ds), tol = tolVao;
+
+    if(o.kind === 'porta' && dist > tolVao){
+      const {h, end} = doorLeaf(w, o);
+      let dSimb = segDist(p, h, end);
+      const ax = p.x - h.x, ay = p.y - h.y;
+      const along = ax*u.x + ay*u.y, perp = ax*n.x + ay*n.y;
+      if(along >= 0 && perp >= 0)                       // só o quadrante varrido pelo arco
+        dSimb = Math.min(dSimb, Math.abs(Math.hypot(ax, ay) - o.wid));
+      if(dSimb < dist){ dist = dSimb; tol = tolSimb; }
+    }
+    if(dist <= tol && dist < bd){ bd = dist; best = o; }
+  }
+  return best;
+}
+/* ---------------- cotas ---------------- */
+/* a linha de cota é o segmento medido, deslocado `off` na perpendicular */
+function dimLine(d){
+  const L = Math.hypot(d.bx-d.ax, d.by-d.ay) || 1;
+  const n = {x:-(d.by-d.ay)/L, y:(d.bx-d.ax)/L};
+  return {a:{x:d.ax + n.x*d.off, y:d.ay + n.y*d.off},
+          b:{x:d.bx + n.x*d.off, y:d.by + n.y*d.off}};
+}
+function pickDim(p){
+  const tol = 8/view.z;
+  let best = null, bd = Infinity;
+  for(const d of M.dims){
+    const l = dimLine(d);
+    const dd = segDist(p, l.a, l.b);
+    if(dd <= tol && dd < bd){ bd = dd; best = d; }
+  }
+  return best;
+}
+/* geometria das cotas automáticas — a mesma para desenhar e para clicar */
+function autoDims(){
+  const out = [];
+  if(!M.walls.length) return out;
+  const c = centroid();
+  for(const w of M.walls){
+    const L = wallLen(w); if(L < 1) continue;
+    const n = wallNorm(w);
+    const mid = {x:(w.ax+w.bx)/2, y:(w.ay+w.by)/2};
+    const away = ((mid.x-c.x)*n.x + (mid.y-c.y)*n.y) >= 0 ? 1 : -1;
+    out.push({wall:w, ax:w.ax, ay:w.ay, bx:w.bx, by:w.by, off: away*(w.t/2 + 350)});
+  }
+  const bb = bbox();
+  if(bb && M.walls.length > 1){
+    out.push({geral:'largura', ax:bb.x0, ay:bb.y0, bx:bb.x1, by:bb.y0, off:-1100});
+    out.push({geral:'altura',  ax:bb.x1, ay:bb.y0, bx:bb.x1, by:bb.y1, off: 1100});
+  }
+  return out;
+}
+function pickAutoDim(p){
+  if(!CFG.autoDim) return null;
+  const tol = 8/view.z;
+  let best = null, bd = Infinity;
+  for(const d of autoDims()){
+    const l = dimLine(d);
+    const dd = segDist(p, l.a, l.b);
+    if(dd <= tol && dd < bd){ bd = dd; best = d; }
+  }
+  return best;
+}
+
+/* ---------------- móveis (caixas) ---------------- */
+function boxCorners(b){
+  const c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
+  const hw = b.w/2, hd = b.d/2;
+  return [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([u,v]) => ({
+    x: b.x + u*c - v*s,
+    y: b.y + u*s + v*c
+  }));
+}
+function pickBox(p){
+  const tol = 4/view.z;
+  let best = null, bd = Infinity, ba = Infinity;
+  for(const b of M.boxes){
+    const c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
+    const dx = p.x - b.x, dy = p.y - b.y;
+    const u = dx*c + dy*s, v = -dx*s + dy*c;
+    const dist = Math.hypot(Math.max(0, Math.abs(u) - b.w/2), Math.max(0, Math.abs(v) - b.d/2));
+    const a = b.w*b.d;
+    if(dist <= tol && (dist < bd || (dist === bd && a < ba))){ bd = dist; ba = a; best = b; }
+  }
+  return best;
+}
+function pickWall(p){
+  let best = null, bd = 1e12;
+  for(const w of M.walls){
+    const d = segDist(p, {x:w.ax,y:w.ay}, {x:w.bx,y:w.by});
+    const tol = w.t/2 + 8/view.z;
+    if(d < tol && d < bd){ bd = d; best = w; }
+  }
+  return best;
+}
+
+/* ============================================================ *
+ *  Desenho 2D
+ * ============================================================ */
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+let rafPending = false;
+function draw(){
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(() => { rafPending = false; render(); });
+}
+
+function render(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,CW,CH);
+  if(mode === '3d'){ render3D(); return; }
+  cv3.style.display = 'none';
+  ctx.fillStyle = css('--sheet');
+  ctx.fillRect(0,0,CW,CH);
+
+  drawGrid();
+  drawBoxes();
+  drawWalls();
+  drawOpenings();
+  if(CFG.autoDim) drawAutoDims();
+  drawManualDims();
+  drawHover();
+  drawSelection();
+  if(AC && AC.spec.preview) AC.spec.preview(AC);
+  drawCursor();
+  updateReadout();
+}
+
+function drawGrid(){
+  const steps = [10,25,50,100,250,500,1000,2500,5000,10000,25000,50000];
+  let s = steps.find(v => v*view.z >= 9) || 50000;
+  const big = s*5;
+  const tl = S2W({x:0,y:0}), br = S2W({x:CW,y:CH});
+  ctx.lineWidth = 1;
+  for(const [step,color] of [[s,'--grid-1'],[big,'--grid-2']]){
+    ctx.strokeStyle = css(color);
+    ctx.beginPath();
+    for(let x = Math.ceil(tl.x/step)*step; x <= br.x; x += step){
+      const sx = Math.round(W2S({x,y:0}).x)+0.5;
+      ctx.moveTo(sx,0); ctx.lineTo(sx,CH);
+    }
+    for(let y = Math.ceil(br.y/step)*step; y <= tl.y; y += step){
+      const sy = Math.round(W2S({x:0,y}).y)+0.5;
+      ctx.moveTo(0,sy); ctx.lineTo(CW,sy);
+    }
+    ctx.stroke();
+  }
+  // eixos
+  ctx.strokeStyle = css('--grid-2'); ctx.lineWidth = 1.6;
+  const o = W2S({x:0,y:0});
+  ctx.beginPath(); ctx.moveTo(0,o.y); ctx.lineTo(CW,o.y); ctx.moveTo(o.x,0); ctx.lineTo(o.x,CH); ctx.stroke();
+}
+
+function darken(hex, k){
+  return 'rgb(' + hexRGB(hex).map(v => Math.round(v*(1-k))).join(',') + ')';
+}
+function drawBoxes(){
+  if(!M.boxes.length) return;
+  ctx.save();
+  for(const b of M.boxes){
+    const pts = boxCorners(b).map(W2S);
+    ctx.globalAlpha = .88;
+    ctx.fillStyle = b.color;
+    tracePoly(pts); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = darken(b.color, .45); ctx.lineWidth = 1.2;
+    tracePoly(pts); ctx.stroke();
+    if(b.nome){
+      const C = W2S({x:b.x, y:b.y});
+      ctx.font = '600 10.5px ' + css('--f-disp');
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = darken(b.color, .58);
+      ctx.fillText(b.nome, C.x, C.y);
+      ctx.textAlign = 'left';
+    }
+  }
+  ctx.restore();
+}
+
+/* contorno + preenchimento uniforme das paredes */
+function drawWalls(){
+  if(!M.walls.length) return;
+  const lw = Math.max(1, 1.4);
+  const paint = (inset) => {
+    ctx.beginPath();
+    for(const w of M.walls){
+      const L = wallLen(w); if(L < 1) continue;
+      const u = wallDir(w), n = wallNorm(w);
+      const half = w.t/2*view.z - inset;
+      if(half <= 0.2) continue;
+      for(const [d0,d1] of solidSpans(w)){
+        const A = W2S({x:w.ax+u.x*d0, y:w.ay+u.y*d0});
+        const B = W2S({x:w.ax+u.x*d1, y:w.ay+u.y*d1});
+        // direção em tela (y invertido)
+        const ux = u.x, uy = -u.y, nx = n.x, ny = -n.y;
+        const ex = inset ? ux*inset : 0, ey = inset ? uy*inset : 0;
+        const p1 = {x:A.x + nx*half - ex, y:A.y + ny*half - ey};
+        const p2 = {x:B.x + nx*half + ex, y:B.y + ny*half + ey};
+        const p3 = {x:B.x - nx*half + ex, y:B.y - ny*half + ey};
+        const p4 = {x:A.x - nx*half - ex, y:A.y - ny*half - ey};
+        ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath();
+      }
+      // nós (junções) — disco no encontro das paredes
+      for(const P of [{x:w.ax,y:w.ay},{x:w.bx,y:w.by}]){
+        const S = W2S(P);
+        ctx.moveTo(S.x+half, S.y);
+        ctx.arc(S.x, S.y, half, 0, Math.PI*2);
+      }
+    }
+    ctx.fill('nonzero');
+  };
+  ctx.fillStyle = css('--graphite'); paint(0);
+  ctx.fillStyle = css('--hatch');    paint(lw);
+}
+
+function drawOpenings(){
+  ctx.lineWidth = 1.3;
+  for(const o of M.ops){
+    const w = M.walls.find(v => v.id === o.w); if(!w) continue;
+    const u = wallDir(w), n = wallNorm(w), half = w.t/2;
+    const c = {x:w.ax + u.x*o.d, y:w.ay + u.y*o.d};
+    const a = {x:c.x - u.x*o.wid/2, y:c.y - u.y*o.wid/2};
+    const b = {x:c.x + u.x*o.wid/2, y:c.y + u.y*o.wid/2};
+    const off = p => ({A:W2S({x:p.x+n.x*half, y:p.y+n.y*half}), B:W2S({x:p.x-n.x*half, y:p.y-n.y*half})});
+    const fa = off(a), fb = off(b);
+
+    if(o.kind === 'janela'){
+      ctx.strokeStyle = css('--graphite');
+      ctx.beginPath();
+      ctx.moveTo(fa.A.x,fa.A.y); ctx.lineTo(fb.A.x,fb.A.y);
+      ctx.moveTo(fa.B.x,fa.B.y); ctx.lineTo(fb.B.x,fb.B.y);
+      const mA = W2S({x:a.x, y:a.y}), mB = W2S({x:b.x, y:b.y});
+      ctx.moveTo(mA.x,mA.y); ctx.lineTo(mB.x,mB.y);
+      ctx.moveTo(fa.A.x,fa.A.y); ctx.lineTo(fa.B.x,fa.B.y);
+      ctx.moveTo(fb.A.x,fb.A.y); ctx.lineTo(fb.B.x,fb.B.y);
+      ctx.stroke();
+    }else{
+      ctx.strokeStyle = css('--graphite');
+      ctx.beginPath();
+      ctx.moveTo(fa.A.x,fa.A.y); ctx.lineTo(fa.B.x,fa.B.y);
+      ctx.moveTo(fb.A.x,fb.A.y); ctx.lineTo(fb.B.x,fb.B.y);
+      ctx.stroke();
+      // folha + arco de abertura
+      const hinge = a, leafEnd = {x:hinge.x + n.x*o.wid, y:hinge.y + n.y*o.wid};
+      const H = W2S(hinge), Lf = W2S(leafEnd);
+      ctx.strokeStyle = css('--ink-2');
+      ctx.beginPath(); ctx.moveTo(H.x,H.y); ctx.lineTo(Lf.x,Lf.y); ctx.stroke();
+      const a0 = Math.atan2(-(leafEnd.y-hinge.y), leafEnd.x-hinge.x);
+      const a1 = Math.atan2(-(b.y-hinge.y), b.x-hinge.x);
+      ctx.strokeStyle = css('--ink-3'); ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.arc(H.x, H.y, o.wid*view.z, a0, a1, a0 > a1); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+/* ---- cotas ---- */
+function drawDim(a, b, off, color){
+  const L = dist(a,b); if(L < 1) return;
+  const u = {x:(b.x-a.x)/L, y:(b.y-a.y)/L};
+  const n = {x:-u.y, y:u.x};
+  const A = W2S({x:a.x+n.x*off, y:a.y+n.y*off});
+  const B = W2S({x:b.x+n.x*off, y:b.y+n.y*off});
+  const A0 = W2S(a), B0 = W2S(b);
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y);
+  // linhas de chamada com folga
+  const ext = (P0,P1) => {
+    const dx = P1.x-P0.x, dy = P1.y-P0.y, d = Math.hypot(dx,dy) || 1;
+    ctx.moveTo(P0.x + dx/d*3, P0.y + dy/d*3);
+    ctx.lineTo(P1.x + dx/d*5, P1.y + dy/d*5);
+  };
+  ext(A0,A); ext(B0,B);
+  ctx.stroke();
+  // ticks arquitetônicos a 45°
+  const ang = Math.atan2(B.y-A.y, B.x-A.x);
+  ctx.lineWidth = 1.6;
+  for(const P of [A,B]){
+    ctx.beginPath();
+    const t = ang + Math.PI/4, r = 5;
+    ctx.moveTo(P.x - Math.cos(t)*r, P.y - Math.sin(t)*r);
+    ctx.lineTo(P.x + Math.cos(t)*r, P.y + Math.sin(t)*r);
+    ctx.stroke();
+  }
+  // texto
+  let ta = ang;
+  if(ta > Math.PI/2 || ta < -Math.PI/2) ta += Math.PI;
+  const mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+  const label = U.fmt(L);
+  ctx.translate(mx,my); ctx.rotate(ta);
+  ctx.font = '600 11px ' + css('--f-disp');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = css('--sheet');
+  ctx.fillRect(-tw/2-3, -13, tw+6, 12);
+  ctx.fillStyle = color;
+  ctx.fillText(label, 0, -2);
+  ctx.restore();
+}
+
+function drawAutoDims(){
+  const parede = css('--ink-2'), geral = css('--accent');
+  for(const d of autoDims())
+    drawDim({x:d.ax,y:d.ay}, {x:d.bx,y:d.by}, d.off, d.geral ? geral : parede);
+}
+function drawManualDims(){
+  const color = css('--amber');
+  for(const d of M.dims) drawDim({x:d.ax,y:d.ay}, {x:d.bx,y:d.by}, d.off, color);
+}
+
+/* ---- seleção / grips ---- */
+/* caixa de seleção de um vão, em coordenadas de tela */
+function opBox(w, o){
+  const u = wallDir(w), n = wallNorm(w), h = w.t/2 + 60;
+  const c = {x:w.ax + u.x*o.d, y:w.ay + u.y*o.d};
+  const corner = (sd, sn) => W2S({
+    x: c.x + u.x*(o.wid/2)*sd + n.x*h*sn,
+    y: c.y + u.y*(o.wid/2)*sd + n.y*h*sn
+  });
+  return [corner(-1,1), corner(1,1), corner(1,-1), corner(-1,-1)];
+}
+function tracePoly(pts){
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+}
+
+/* realce do que está sob o cursor, para o alvo clicável ficar evidente */
+function drawHover(){
+  if(!hover || AC) return;
+  ctx.save();
+  ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.3;
+  ctx.globalAlpha = .7; ctx.setLineDash([4,3]);
+  if(hover.op){
+    const o = hover.op, w = M.walls.find(v => v.id === o.w);
+    if(w){
+      tracePoly(opBox(w, o)); ctx.stroke();
+      if(o.kind === 'porta'){
+        const {h, end} = doorLeaf(w, o);
+        const A = W2S(h), B = W2S(end);
+        ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+      }
+    }
+  }else if(hover.dim){
+    const l = dimLine(hover.dim), A = W2S(l.a), B = W2S(l.b);
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+  }else if(hover.box){
+    tracePoly(boxCorners(hover.box).map(W2S)); ctx.stroke();
+  }else if(hover.wall){
+    const w = hover.wall;
+    const A = W2S({x:w.ax, y:w.ay}), B = W2S({x:w.bx, y:w.by});
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSelection(){
+  if(selDim){
+    const d = M.dims.find(v => v.id === selDim);
+    if(d){
+      const l = dimLine(d), A = W2S(l.a), B = W2S(l.b);
+      ctx.save();
+      ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+      ctx.fillStyle = css('--accent');
+      for(const P of [A, B]) ctx.fillRect(P.x-3.5, P.y-3.5, 7, 7);
+      // pontos medidos, para deixar claro o que a cota mede
+      ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+      const A0 = W2S({x:d.ax, y:d.ay}), B0 = W2S({x:d.bx, y:d.by});
+      ctx.beginPath();
+      ctx.moveTo(A0.x, A0.y); ctx.lineTo(A.x, A.y);
+      ctx.moveTo(B0.x, B0.y); ctx.lineTo(B.x, B.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  if(selBox){
+    const b = M.boxes.find(v => v.id === selBox);
+    if(b){
+      const pts = boxCorners(b).map(W2S);
+      ctx.save();
+      ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2;
+      tracePoly(pts); ctx.stroke();
+      ctx.fillStyle = css('--accent');
+      for(const P of pts) ctx.fillRect(P.x-3.5, P.y-3.5, 7, 7);
+      ctx.restore();
+    }
+  }
+  if(selOp){
+    const o = M.ops.find(v => v.id === selOp);
+    const w = o && M.walls.find(v => v.id === o.w);
+    if(w){
+      const pts = opBox(w, o);
+      ctx.save();
+      ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2;
+      tracePoly(pts); ctx.stroke();
+      ctx.fillStyle = css('--accent');
+      for(const P of pts) ctx.fillRect(P.x-3, P.y-3, 6, 6);
+      ctx.restore();
+    }
+  }
+  if(!sel.size) return;
+  ctx.save();
+  ctx.strokeStyle = css('--accent'); ctx.lineWidth = 2;
+  ctx.fillStyle = css('--accent');
+  for(const id of sel){
+    const w = M.walls.find(v => v.id === id); if(!w) continue;
+    const A = W2S({x:w.ax,y:w.ay}), B = W2S({x:w.bx,y:w.by});
+    ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+    ctx.setLineDash([]);
+    for(const P of [A,B]) ctx.fillRect(P.x-3.5, P.y-3.5, 7, 7);
+  }
+  ctx.restore();
+}
+
+/* ---- previews ---- */
+function ghostLine(a,b){
+  const A = W2S(a), B = W2S(b);
+  ctx.save();
+  ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.2; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
+  ctx.restore();
+}
+function ghostWall(a,b){
+  const L = dist(a,b);
+  ghostLine(a,b);
+  if(L < 1) return;
+  const ang = Math.atan2(b.y-a.y, b.x-a.x)*180/Math.PI;
+  const B = W2S(b);
+  const txt = U.fmt(L) + ' ' + CFG.unit + '  ·  ' + ((ang+360)%360).toFixed(1) + '°';
+  ctx.save();
+  ctx.font = '600 11.5px ' + css('--f-disp');
+  const tw = ctx.measureText(txt).width;
+  ctx.fillStyle = css('--rail');
+  ctx.fillRect(B.x+14, B.y+10, tw+12, 19);
+  ctx.strokeStyle = css('--edge'); ctx.lineWidth = 1;
+  ctx.strokeRect(B.x+14.5, B.y+10.5, tw+11, 18);
+  ctx.fillStyle = css('--ink');
+  ctx.textBaseline = 'middle';
+  ctx.fillText(txt, B.x+20, B.y+20);
+  ctx.restore();
+}
+
+/* ---- cursor CAD: crosshair + pickbox + marca de snap ---- */
+function drawCursor(){
+  const S = W2S(cur);
+  ctx.save();
+  ctx.strokeStyle = css('--cross'); ctx.lineWidth = 1; ctx.globalAlpha = .8;
+  ctx.beginPath();
+  ctx.moveTo(0, Math.round(S.y)+0.5); ctx.lineTo(CW, Math.round(S.y)+0.5);
+  ctx.moveTo(Math.round(S.x)+0.5, 0); ctx.lineTo(Math.round(S.x)+0.5, CH);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeRect(S.x-6.5, S.y-6.5, 13, 13);
+  if(snapInfo && snapInfo !== 'grade'){
+    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    if(snapInfo === 'ext' || snapInfo === 'canto'){
+      ctx.strokeRect(S.x-7, S.y-7, 14, 14);
+    }else if(snapInfo === 'meio'){
+      ctx.moveTo(S.x-8,S.y+6); ctx.lineTo(S.x,S.y-8); ctx.lineTo(S.x+8,S.y+6); ctx.closePath(); ctx.stroke();
+    }else if(snapInfo === 'inter'){
+      ctx.moveTo(S.x-7,S.y-7); ctx.lineTo(S.x+7,S.y+7);
+      ctx.moveTo(S.x+7,S.y-7); ctx.lineTo(S.x-7,S.y+7); ctx.stroke();
+    }else if(snapInfo === 'face'){
+      ctx.moveTo(S.x-8,S.y-6); ctx.lineTo(S.x+8,S.y-6);
+      ctx.lineTo(S.x-8,S.y+6); ctx.lineTo(S.x+8,S.y+6); ctx.stroke();
+    }else{
+      ctx.arc(S.x,S.y,7,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.font = '600 10px ' + css('--f-disp');
+    ctx.fillStyle = css('--accent');
+    ctx.fillText(snapInfo.toUpperCase(), S.x+11, S.y-9);
+  }
+  ctx.restore();
+}
+
+function updateReadout(){
+  document.getElementById('rx').textContent = U.fmt(cur.x);
+  document.getElementById('ry').textContent = U.fmt(cur.y);
+  // escala aproximada de plotagem (96 dpi ⇒ 1 px ≈ 0,2646 mm de papel)
+  const s = Math.round(0.2646 / view.z);
+  document.getElementById('rz').innerHTML = '<em>esc</em> <b>1:' + s + '</b>';
+  document.getElementById('rsel').innerHTML =
+    '<em>sel</em> <b>' + (sel.size + (selOp ? 1 : 0) + (selBox ? 1 : 0) + (selDim ? 1 : 0)) + '</b>';
+}
+
+/* ============================================================ *
+ *  Vista 3D — extrusão das paredes, painter's algorithm
+ * ============================================================ */
+let dirty3d = true, quads = [];
+
+function build3D(){
+  quads = [];
+  const bb = bbox();
+  if(bb){
+    const m = 800;
+    quads.push({v:[[bb.x0-m,bb.y0-m,0],[bb.x1+m,bb.y0-m,0],[bb.x1+m,bb.y1+m,0],[bb.x0-m,bb.y1+m,0]],
+                n:[0,0,1], c:'floor'});
+  }
+  for(const w of M.walls){
+    const L = wallLen(w); if(L < 1) continue;
+    const u = wallDir(w), n = wallNorm(w), half = w.t/2;
+    const P = (d,s,z) => [w.ax + u.x*d + n.x*half*s, w.ay + u.y*d + n.y*half*s, z];
+
+    const ops = opsOf(w).map(o => ({
+      d0: clamp(o.d - o.wid/2, 0, L),
+      d1: clamp(o.d + o.wid/2, 0, L),
+      z0: clamp(o.sill, 0, w.h),
+      z1: clamp(o.sill + o.h, 0, w.h)
+    })).filter(o => o.d1 > o.d0 && o.z1 > o.z0);
+
+    const D = uniqSort([0, L, ...ops.flatMap(o => [o.d0,o.d1])]);
+    const Z = uniqSort([0, w.h, ...ops.flatMap(o => [o.z0,o.z1])]);
+    const nd = D.length-1, nz = Z.length-1;
+    const fill = [];
+    for(let i=0;i<nd;i++){
+      fill[i] = [];
+      for(let j=0;j<nz;j++){
+        const cd = (D[i]+D[i+1])/2, cz = (Z[j]+Z[j+1])/2;
+        fill[i][j] = !ops.some(o => cd > o.d0 && cd < o.d1 && cz > o.z0 && cz < o.z1);
+      }
+    }
+    for(let i=0;i<nd;i++) for(let j=0;j<nz;j++){
+      if(!fill[i][j]) continue;
+      const d0=D[i], d1=D[i+1], z0=Z[j], z1=Z[j+1];
+      const face = (v, nr) => quads.push({v, n:nr, c:'wall'});
+      face([P(d0,1,z0),P(d1,1,z0),P(d1,1,z1),P(d0,1,z1)], [n.x,n.y,0]);
+      face([P(d1,-1,z0),P(d0,-1,z0),P(d0,-1,z1),P(d1,-1,z1)], [-n.x,-n.y,0]);
+      if(i === 0     || !fill[i-1][j]) face([P(d0,-1,z0),P(d0,1,z0),P(d0,1,z1),P(d0,-1,z1)], [-u.x,-u.y,0]);
+      if(i === nd-1  || !fill[i+1][j]) face([P(d1,1,z0),P(d1,-1,z0),P(d1,-1,z1),P(d1,1,z1)], [u.x,u.y,0]);
+      if(j === nz-1  || !fill[i][j+1]) face([P(d0,-1,z1),P(d0,1,z1),P(d1,1,z1),P(d1,-1,z1)], [0,0,1]);
+      if(j > 0 && !fill[i][j-1])       face([P(d0,1,z0),P(d0,-1,z0),P(d1,-1,z0),P(d1,1,z0)], [0,0,-1]);
+    }
+  }
+  for(const b of M.boxes){
+    if(b.w < 1 || b.d < 1 || b.h < 1) continue;
+    const cs = boxCorners(b);
+    const z0 = b.z || 0, z1 = z0 + b.h;
+    const P = (i, z) => [cs[i].x, cs[i].y, z];
+    for(let i=0;i<4;i++){
+      const j = (i+1)%4;
+      const dx = cs[j].x-cs[i].x, dy = cs[j].y-cs[i].y, L = Math.hypot(dx,dy) || 1;
+      quads.push({v:[P(i,z0),P(j,z0),P(j,z1),P(i,z1)], n:[dy/L, -dx/L, 0], c:'box', hex:b.color});
+    }
+    quads.push({v:[P(0,z1),P(1,z1),P(2,z1),P(3,z1)], n:[0,0,1], c:'box', hex:b.color});
+    if(z0 > 0) quads.push({v:[P(3,z0),P(2,z0),P(1,z0),P(0,z0)], n:[0,0,-1], c:'box', hex:b.color});
+  }
+  dirty3d = false;
+}
+/* cor base de uma face, resolvida no momento do render para acompanhar o tema */
+function quadHex(q){
+  return q.c === 'floor' ? css('--paper-3d')
+       : q.c === 'box'   ? (q.hex || css('--graphite'))
+       : css('--graphite');
+}
+
+function camEye(){
+  return [
+    cam.tx + cam.r*Math.cos(cam.el)*Math.cos(cam.az),
+    cam.ty + cam.r*Math.cos(cam.el)*Math.sin(cam.az),
+    cam.tz + cam.r*Math.sin(cam.el)
+  ];
+}
+function makeBasis(){
+  const e = camEye(), t = [cam.tx,cam.ty,cam.tz];
+  let f = [t[0]-e[0], t[1]-e[1], t[2]-e[2]];
+  const fl = Math.hypot(...f); f = f.map(v => v/fl);
+  let r = [f[1], -f[0], 0];          // f × (0,0,1)
+  const rl = Math.hypot(...r) || 1; r = r.map(v => v/rl);
+  const up = [r[1]*f[2]-r[2]*f[1], r[2]*f[0]-r[0]*f[2], r[0]*f[1]-r[1]*f[0]];
+  return {e, f, r, up};
+}
+function initCam(){
+  const bb = bbox();
+  if(bb){
+    cam.tx = (bb.x0+bb.x1)/2; cam.ty = (bb.y0+bb.y1)/2; cam.tz = CFG.wallH*0.45;
+    cam.r = Math.max(6000, Math.hypot(bb.x1-bb.x0, bb.y1-bb.y0) * 1.5);
+  }
+  cam.init = true;
+}
+
+/* ---- matrizes 4×4, column-major (ordem que o WebGL espera) ---- */
+function matPersp(fovy, asp, near, far){
+  const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
+  return new Float32Array([f/asp,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+}
+function matLookAt(e, t, up){
+  let z = [e[0]-t[0], e[1]-t[1], e[2]-t[2]];
+  let l = Math.hypot(z[0],z[1],z[2]) || 1; z = z.map(v => v/l);
+  let x = [up[1]*z[2]-up[2]*z[1], up[2]*z[0]-up[0]*z[2], up[0]*z[1]-up[1]*z[0]];
+  l = Math.hypot(x[0],x[1],x[2]) || 1; x = x.map(v => v/l);
+  const y = [z[1]*x[2]-z[2]*x[1], z[2]*x[0]-z[0]*x[2], z[0]*x[1]-z[1]*x[0]];
+  const d = v => -(v[0]*e[0] + v[1]*e[1] + v[2]*e[2]);
+  return new Float32Array([x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, d(x),d(y),d(z),1]);
+}
+function matMul(a, b){
+  const o = new Float32Array(16);
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++){
+    let s = 0;
+    for(let k=0;k<4;k++) s += a[k*4+r]*b[c*4+k];
+    o[c*4+r] = s;
+  }
+  return o;
+}
+
+/* ---- WebGL: z-buffer real, sem ordenação por profundidade ---- */
+let gl, glProg, glU = {}, glA = {}, glB = {}, glTris = 0, glLines = 0, glUp = false;
+
+/* a cor entra por vértice (aLo/aHi) para que cada móvel tenha o seu pastel,
+   com o par sombra/luz já resolvido na CPU conforme o tema */
+const VS = `
+attribute vec3 aPos;
+attribute vec3 aNor;
+attribute vec3 aLo;
+attribute vec3 aHi;
+uniform mat4 uMVP;
+varying vec3 vNor;
+varying vec3 vLo;
+varying vec3 vHi;
+void main(){
+  vNor = aNor;
+  vLo = aLo;
+  vHi = aHi;
+  gl_Position = uMVP * vec4(aPos, 1.0);
+}`;
+
+const FS = `
+precision mediump float;
+varying vec3 vNor;
+varying vec3 vLo;
+varying vec3 vHi;
+uniform vec3 uLine, uLight;
+uniform float uFlat;
+void main(){
+  if(uFlat > 0.5){ gl_FragColor = vec4(uLine, 1.0); return; }
+  float k = 0.25 + 0.75 * max(dot(normalize(vNor), uLight), 0.0);
+  gl_FragColor = vec4(mix(vLo, vHi, k), 1.0);
+}`;
+
+function initGL(){
+  try{
+    gl = cv3.getContext('webgl', {antialias:true, depth:true, alpha:false})
+      || cv3.getContext('experimental-webgl');
+  }catch(err){ gl = null; }
+  if(!gl){ gl = null; return null; }
+  const sh = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) || 'falha ao compilar');
+    return s;
+  };
+  try{
+    glProg = gl.createProgram();
+    gl.attachShader(glProg, sh(gl.VERTEX_SHADER, VS));
+    gl.attachShader(glProg, sh(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(glProg);
+    if(!gl.getProgramParameter(glProg, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(glProg) || 'falha ao linkar');
+  }catch(err){
+    gl = null;
+    log('  WebGL indisponível (' + err.message + ') — usando render por software', 'err');
+    return null;
+  }
+  gl.useProgram(glProg);
+  for(const n of ['uMVP','uLine','uLight','uFlat']) glU[n] = gl.getUniformLocation(glProg, n);
+  for(const n of ['aPos','aNor','aLo','aHi']) glA[n] = gl.getAttribLocation(glProg, n);
+  for(const n of ['pos','nor','lo','hi','lin']) glB[n] = gl.createBuffer();
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.CULL_FACE);   // faces internas já não são geradas; o z-buffer resolve o resto
+  return gl;
+}
+
+/* triangula os quads e envia à GPU */
+function uploadGL(){
+  if(dirty3d) build3D();
+  const bgHex = css('--sheet'), cache = new Map();
+  const pair = hex => {
+    let p = cache.get(hex);
+    if(!p){ p = shadePair(hex, bgHex); cache.set(hex, p); }
+    return p;
+  };
+  const pos = [], nor = [], lo = [], hi = [];
+  for(const q of quads){
+    const {lo:l, hi:h} = pair(quadHex(q));
+    const [a,b,c,d] = q.v;
+    for(const v of [a,b,c, a,c,d]){
+      pos.push(v[0], v[1], v[2]);
+      nor.push(q.n[0], q.n[1], q.n[2]);
+      lo.push(l[0], l[1], l[2]);
+      hi.push(h[0], h[1], h[2]);
+    }
+  }
+  glTris = pos.length/3;
+
+  const bb = bbox() || {x0:-5000, y0:-5000, x1:5000, y1:5000};
+  const g = 1000, m = 3000, z = 2, lin = [];
+  for(let x = Math.floor((bb.x0-m)/g)*g; x <= bb.x1+m; x += g) lin.push(x, bb.y0-m, z, x, bb.y1+m, z);
+  for(let y = Math.floor((bb.y0-m)/g)*g; y <= bb.y1+m; y += g) lin.push(bb.x0-m, y, z, bb.x1+m, y, z);
+  glLines = lin.length/3;
+
+  const put = (buf, arr) => {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+  };
+  put(glB.pos, pos); put(glB.nor, nor); put(glB.lo, lo); put(glB.hi, hi); put(glB.lin, lin);
+  glUp = true;
+}
+
+/* par sombra/luz coerente com o tema: base escura clareia, base clara escurece */
+function lum(c){ return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]; }
+function shadePair(baseHex, bgHex){
+  const b = hexRGB(baseHex).map(v => v/255), g = hexRGB(bgHex).map(v => v/255);
+  const toward = (c, t) => c.map((v,i) => v*(1-t) + g[i]*t);
+  return lum(b) < lum(g)
+    ? {lo: b.map(v => v*0.45), hi: toward(b, 0.34)}
+    : {lo: toward(b, 0.74),    hi: b};
+}
+
+function renderGL(){
+  const bg = hexRGB(css('--sheet')).map(v => v/255);
+  const LN = hexRGB(css('--grid-2')).map(v => v/255);
+
+  gl.viewport(0, 0, cv3.width, cv3.height);
+  gl.clearColor(bg[0], bg[1], bg[2], 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(glProg);
+
+  const near = Math.max(40, cam.r*0.004), far = cam.r*8 + 30000;
+  const P = matPersp(48*Math.PI/180, CW/CH, near, far);
+  const V = matLookAt(camEye(), [cam.tx, cam.ty, cam.tz], [0,0,1]);
+  gl.uniformMatrix4fv(glU.uMVP, false, matMul(P, V));
+  gl.uniform3fv(glU.uLine, LN);
+  const L = [0.42, -0.62, 0.66], ll = Math.hypot(L[0], L[1], L[2]);
+  gl.uniform3f(glU.uLight, L[0]/ll, L[1]/ll, L[2]/ll);
+
+  const bind = (buf, loc, size) => {
+    if(loc < 0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+  };
+  gl.uniform1f(glU.uFlat, 0);
+  bind(glB.pos, glA.aPos, 3); bind(glB.nor, glA.aNor, 3);
+  bind(glB.lo, glA.aLo, 3);   bind(glB.hi, glA.aHi, 3);
+  gl.drawArrays(gl.TRIANGLES, 0, glTris);
+
+  gl.uniform1f(glU.uFlat, 1);
+  for(const [loc, val] of [[glA.aNor,[0,0,1]], [glA.aLo,[0,0,0]], [glA.aHi,[0,0,0]]]){
+    if(loc >= 0){ gl.disableVertexAttribArray(loc); gl.vertexAttrib3f(loc, val[0], val[1], val[2]); }
+  }
+  bind(glB.lin, glA.aPos, 3);
+  gl.drawArrays(gl.LINES, 0, glLines);
+}
+
+function render3D(){
+  if(!cam.init) initCam();
+  if(gl === undefined) initGL();
+  if(gl){
+    cv3.style.display = 'block';
+    if(dirty3d || !glUp) uploadGL();
+    renderGL();
+  }else{
+    cv3.style.display = 'none';
+    ctx.fillStyle = css('--sheet');
+    ctx.fillRect(0, 0, CW, CH);
+    render3DSoft();
+  }
+  ctx.font = '600 11px ' + css('--f-disp');
+  ctx.fillStyle = css('--ink-3');
+  ctx.fillText('ARRASTAR: ORBITAR  ·  SHIFT+ARRASTAR: DESLOCAR  ·  RODA: ZOOM  ·  3D OU ESC: VOLTA AO 2D', 14, CH-14);
+  updateReadout();
+}
+
+/* fallback sem WebGL: painter's algorithm, com o piso sempre no fundo */
+function render3DSoft(){
+  if(dirty3d) build3D();
+  const {e, f, r, up} = makeBasis();
+  const fov = 48*Math.PI/180;
+  const foc = (CH/2)/Math.tan(fov/2);
+  const near = 60;
+
+  const proj = p => {
+    const dx = p[0]-e[0], dy = p[1]-e[1], dz = p[2]-e[2];
+    const z = dx*f[0] + dy*f[1] + dz*f[2];
+    if(z < near) return null;
+    return {x: CW/2 + foc*(dx*r[0]+dy*r[1]+dz*r[2])/z,
+            y: CH/2 - foc*(dx*up[0]+dy*up[1]+dz*up[2])/z, z};
+  };
+
+  // grade do terreno
+  const bb = bbox() || {x0:-5000,y0:-5000,x1:5000,y1:5000};
+  const g = 1000, m = 3000;
+  ctx.strokeStyle = css('--grid-1'); ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let x = Math.floor((bb.x0-m)/g)*g; x <= bb.x1+m; x += g){
+    const A = proj([x, bb.y0-m, 0]), B = proj([x, bb.y1+m, 0]);
+    if(A && B){ ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); }
+  }
+  for(let y = Math.floor((bb.y0-m)/g)*g; y <= bb.y1+m; y += g){
+    const A = proj([bb.x0-m, y, 0]), B = proj([bb.x1+m, y, 0]);
+    if(A && B){ ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); }
+  }
+  ctx.stroke();
+
+  // sorteia por profundidade, descarta faces de costas
+  const light = (() => { const v=[0.42,-0.62,0.66]; const l=Math.hypot(...v); return v.map(c=>c/l); })();
+  const list = [], floors = [];
+  for(const q of quads){
+    let cx=0, cy=0, cz=0;
+    for(const v of q.v){ cx+=v[0]; cy+=v[1]; cz+=v[2]; }
+    const k = q.v.length; cx/=k; cy/=k; cz/=k;
+    const toEye = [e[0]-cx, e[1]-cy, e[2]-cz];
+    if(q.n[0]*toEye[0] + q.n[1]*toEye[1] + q.n[2]*toEye[2] <= 0) continue;
+    // o piso é um quad único e enorme: seu centroide não representa a profundidade
+    // de nenhum ponto seu, então ele nunca entra na ordenação — vai sempre no fundo
+    (q.c === 'floor' ? floors : list).push({q, d: toEye[0]**2 + toEye[1]**2 + toEye[2]**2});
+  }
+  list.sort((a,b) => b.d - a.d);
+  list.unshift(...floors);
+
+  const bgHex = css('--sheet'), cache = new Map();
+  const pair = hex => {
+    let p = cache.get(hex);
+    if(!p){ p = shadePair(hex, bgHex); cache.set(hex, p); }
+    return p;
+  };
+  ctx.lineJoin = 'round';
+  for(const {q} of list){
+    const pts = q.v.map(proj);
+    if(pts.some(p => !p)) continue;
+    const lam = Math.max(0, q.n[0]*light[0] + q.n[1]*light[1] + q.n[2]*light[2]);
+    const k = 0.25 + 0.75*lam;
+    const {lo, hi} = pair(quadHex(q));
+    const col = lo.map((v, i) => Math.round(255*(v + (hi[i] - v)*k)));
+    ctx.fillStyle = 'rgb(' + col.join(',') + ')';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+function hexRGB(h){
+  h = h.replace('#','').trim();
+  if(h.length === 3) h = h.split('').map(c => c+c).join('');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+/* ============================================================ *
+ *  Interação
+ * ============================================================ */
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = cv.getBoundingClientRect();
+  CW = rect.width; CH = rect.height;
+  cv.width = Math.round(CW*DPR); cv.height = Math.round(CH*DPR);
+  cv3.width = cv.width; cv3.height = cv.height;
+  draw();
+}
+window.addEventListener('resize', resize);
+
+function zoomExtents(){
+  const bb = bbox();
+  if(!bb){ view.x = 0; view.y = 0; view.z = 0.06; draw(); return; }
+  const w = (bb.x1-bb.x0) || 1000, h = (bb.y1-bb.y0) || 1000;
+  view.x = (bb.x0+bb.x1)/2; view.y = (bb.y0+bb.y1)/2;
+  view.z = Math.min(CW/(w*1.45), CH/(h*1.45));
+  cam.init = false;
+  draw();
+}
+
+let panning = false, panStart = null, orbiting = false, orbStart = null;
+
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  cin.focus();
+  if(mode === '3d'){
+    orbiting = true;
+    orbStart = {x:e.offsetX, y:e.offsetY, az:cam.az, el:cam.el, tx:cam.tx, ty:cam.ty, shift:e.shiftKey};
+    cv.classList.add('orbit');
+    return;
+  }
+  if(e.button === 1 || (e.button === 0 && e.altKey)){
+    panning = true; panStart = {x:e.offsetX, y:e.offsetY, vx:view.x, vy:view.y};
+    e.preventDefault(); return;
+  }
+  if(e.button === 2) return;
+  if(AC){ feedPoint(cur); return; }
+  // seleção — o que é fino e fica por cima vem antes das paredes
+  const limpar = () => { sel.clear(); selOp = null; selBox = null; selDim = null; };
+  const o = pickOpening(cur);
+  if(o){ limpar(); selOp = o.id; syncTools(); draw(); return; }
+  const dm = pickDim(cur);
+  if(dm){ limpar(); selDim = dm.id; syncTools(); draw(); return; }
+  const bx = pickBox(cur);
+  if(bx){ limpar(); selBox = bx.id; syncTools(); draw(); return; }
+  const w = pickWall(cur);
+  if(!w){
+    // clicou numa cota automática: ela não é um objeto, mas a parede que ela mede é
+    const ad = pickAutoDim(cur);
+    if(ad){
+      limpar();
+      if(ad.wall){ sel.add(ad.wall.id); log('  cota automática — selecionada a parede que ela mede'); }
+      else log('  cota geral do contorno: gerada automaticamente. Use DIM para uma cota editável.');
+      syncTools(); draw(); return;
+    }
+  }
+  if(!e.shiftKey) limpar();
+  if(w){ sel.has(w.id) ? sel.delete(w.id) : sel.add(w.id); }
+  syncTools(); draw();
+});
+
+cv.addEventListener('pointermove', e => {
+  if(orbiting){
+    const dx = e.offsetX - orbStart.x, dy = e.offsetY - orbStart.y;
+    if(orbStart.shift || e.shiftKey){
+      const s = cam.r/CH*1.6;
+      cam.tx = orbStart.tx - (dx*Math.sin(cam.az) + dy*Math.cos(cam.az)*0.4)*s;
+      cam.ty = orbStart.ty + (dx*Math.cos(cam.az) - dy*Math.sin(cam.az)*0.4)*s;
+    }else{
+      cam.az = orbStart.az - dx*0.006;
+      cam.el = clamp(orbStart.el + dy*0.005, 0.06, 1.45);
+    }
+    draw(); return;
+  }
+  if(panning){
+    view.x = panStart.vx - (e.offsetX - panStart.x)/view.z;
+    view.y = panStart.vy + (e.offsetY - panStart.y)/view.z;
+    draw(); return;
+  }
+  curRaw = S2W({x:e.offsetX, y:e.offsetY});
+  cur = snapPoint(curRaw, basePoint());
+  updateHover();
+  draw();
+});
+
+function updateHover(){
+  hover = null;
+  if(AC || mode !== '2d') return;
+  const o = pickOpening(cur);
+  if(o){ if(o.id !== selOp) hover = {op:o}; return; }
+  const d = pickDim(cur);
+  if(d){ if(d.id !== selDim) hover = {dim:d}; return; }
+  const b = pickBox(cur);
+  if(b){ if(b.id !== selBox) hover = {box:b}; return; }
+  const w = pickWall(cur);
+  if(w){ if(!sel.has(w.id)) hover = {wall:w}; return; }
+  const ad = pickAutoDim(cur);
+  if(ad && ad.wall && !sel.has(ad.wall.id)) hover = {wall:ad.wall, viaCota:true};
+}
+
+/* soltar um .json sobre a planta carrega o desenho */
+const stage = document.querySelector('.stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drop'); });
+stage.addEventListener('dragleave', e => { if(e.target === stage) stage.classList.remove('drop'); });
+stage.addEventListener('drop', e => {
+  e.preventDefault();
+  stage.classList.remove('drop');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(!f) return;
+  if(!/\.json$/i.test(f.name)){ log('  arraste um arquivo .json', 'err'); return; }
+  lerArquivo(f);
+});
+
+const stopDrag = () => { panning = false; orbiting = false; cv.classList.remove('orbit'); };
+cv.addEventListener('pointerup', stopDrag);
+cv.addEventListener('pointercancel', stopDrag);
+cv.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if(AC){ AC.spec.enter ? AC.spec.enter(AC) : endCmd('  cancelado'); }
+});
+
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const k = e.deltaY < 0 ? 1.12 : 1/1.12;
+  if(mode === '3d'){ cam.r = clamp(cam.r/k, 800, 400000); draw(); return; }
+  const before = S2W({x:e.offsetX, y:e.offsetY});
+  view.z = clamp(view.z*k, 0.0008, 4);
+  const after = S2W({x:e.offsetX, y:e.offsetY});
+  view.x += before.x - after.x; view.y += before.y - after.y;
+  curRaw = S2W({x:e.offsetX, y:e.offsetY});
+  cur = snapPoint(curRaw, basePoint());
+  draw();
+}, {passive:false});
+
+/* ---- linha de comando ---- */
+cin.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(mode === '3d'){ setMode('2d'); return; }
+    if(AC) endCmd('  cancelado'); else { sel.clear(); selOp = null; selBox = null; selDim = null; syncTools(); draw(); }
+    cin.value = ''; e.preventDefault(); return;
+  }
+  if(e.key === 'Delete' && !cin.value){ startCmd('E'); e.preventDefault(); return; }
+  if(e.key === 'F8'){ startCmd('ORTO'); e.preventDefault(); return; }
+  if(e.key === 'F3'){ startCmd('OSNAP'); e.preventDefault(); return; }
+  if(e.key === 'F9'){ startCmd('GRADE'); e.preventDefault(); return; }
+  if(e.key === 'z' && (e.ctrlKey||e.metaKey)){ startCmd('U'); e.preventDefault(); return; }
+  if(e.key === 'y' && (e.ctrlKey||e.metaKey)){ startCmd('RE'); e.preventDefault(); return; }
+  const v = cin.value;
+  if(e.key === ' ' && !v.includes(',') && !v.includes('@') && !v.includes('<')){
+    e.preventDefault(); submit(); return;
+  }
+  if(e.key === 'Enter'){ e.preventDefault(); submit(); }
+});
+
+function submit(){
+  const raw = cin.value.trim();
+  cin.value = '';
+  if(!raw){
+    if(AC){ AC.spec.enter ? AC.spec.enter(AC) : endCmd('  fim'); }
+    else if(lastCmd) startCmd(lastCmd);
+    return;
+  }
+  if(AC){
+    const p = parsePoint(raw, basePoint());
+    if(p){ log('  ' + raw); feedPoint(p); return; }
+    if(AC.spec.text && AC.spec.text(AC, raw)) return;
+  }
+  const sp = raw.split(/\s+/);
+  startCmd(sp[0], sp.slice(1).join(' '));
+}
+
+/* ---- botões ---- */
+const $ = id => document.getElementById(id);
+function syncUI(){
+  $('bOrto').classList.toggle('on', CFG.ortho);
+  $('bSnap').classList.toggle('on', CFG.snapGrid);
+  $('bOsnap').classList.toggle('on', CFG.osnap);
+  $('bCota').classList.toggle('on', CFG.autoDim);
+  $('b2d').classList.toggle('on', mode === '2d');
+  $('b3d').classList.toggle('on', mode === '3d');
+  $('bUn').textContent = CFG.unit;
+  syncTools();
+  draw();
+}
+
+/* ---- tooltip: explica cada controle no hover, sem o atraso do title nativo ---- */
+const TIP = {
+  esp:   'Espessura da parede em planta. Alvenaria comum fica em 15; divisória leve, 10.',
+  alt:   'Altura da parede do piso ao teto. Só muda o 3D — a planta continua igual.',
+  grade: 'Passo do snap de grade: todo clique é arredondado para múltiplos deste valor.'
+};
+const tipEl = document.createElement('div');
+tipEl.className = 'tip';
+document.body.appendChild(tipEl);
+let tipTimer = null;
+function hideTip(){ clearTimeout(tipTimer); tipEl.classList.remove('on'); }
+function showTip(host, text){
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => {
+    tipEl.textContent = text;
+    tipEl.classList.add('on');
+    const r = host.getBoundingClientRect();
+    tipEl.style.visibility = 'hidden';
+    tipEl.style.left = '0px'; tipEl.style.top = '0px';
+    const t = tipEl.getBoundingClientRect();
+    let x = r.left, y = r.bottom + 7;
+    if(x + t.width > innerWidth - 10) x = innerWidth - t.width - 10;
+    if(y + t.height > innerHeight - 10) y = r.top - t.height - 7;
+    tipEl.style.left = Math.max(10, x) + 'px';
+    tipEl.style.top = Math.max(10, y) + 'px';
+    tipEl.style.visibility = '';
+  }, 260);
+}
+document.addEventListener('pointerover', e => {
+  const host = e.target.closest && e.target.closest('[data-tip]');
+  if(!host){ hideTip(); return; }
+  const text = host.dataset.tip;
+  if(text) showTip(host, text); else hideTip();
+});
+document.addEventListener('pointerdown', hideTip, true);
+
+/* ---- barra de ferramentas + painel de propriedades ---- */
+const toolBtns = [...document.querySelectorAll('#toolbar button')];
+function syncTools(){
+  const key = AC ? AC.spec.key : 'SEL';
+  for(const b of toolBtns) b.classList.toggle('on', b.dataset.cmd === key);
+  renderProps();
+}
+for(const b of toolBtns){
+  b.onclick = () => {
+    const c = b.dataset.cmd;
+    if(c === 'SEL'){
+      if(AC) endCmd('  cancelado');
+      else { sel.clear(); selOp = null; syncTools(); draw(); }
+    }else{
+      startCmd(c);
+    }
+    cin.focus();
+  };
+}
+
+const fmtU = v => +(v/CFG.uf).toFixed(UNITS[CFG.unit].dec);
+const pHead = t => '<h3>' + t + ' · ' + CFG.unit + '</h3>';
+const pHint = t => '<p class="hint">' + t + '</p>';
+const pRow = (id, label, mmVal, tip, step) =>
+  '<div class="row" data-tip="' + esc(tip || '') + '"><label for="p_' + id + '">' + label + '</label>' +
+  '<input id="p_' + id + '" type="number" step="' + (step || 1) + '" value="' + fmtU(mmVal) + '"></div>';
+const pText = (id, label, val, tip) =>
+  '<div class="row" data-tip="' + esc(tip || '') + '"><label for="p_' + id + '">' + label + '</label>' +
+  '<input id="p_' + id + '" type="text" value="' + esc(val || '') + '"></div>';
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const pSwatches = atual =>
+  '<div class="swrow"><span class="swlabel">Cor</span><div class="sw">' +
+  PALETA.map(p => '<button class="chip' + (p.c === atual ? ' on' : '') + '" data-cor="' + p.c +
+    '" style="background:' + p.c + '" data-tip="' + p.n + ' — pastel para diferenciar os móveis na planta e no 3D"></button>').join('') +
+  '</div></div>';
+
+function renderProps(){
+  const el = $('props');
+  const tool = AC ? AC.spec.key : 'SEL';
+  const op = selOp ? M.ops.find(o => o.id === selOp) : null;
+  const bx = selBox ? M.boxes.find(b => b.id === selBox) : null;
+  const dm = selDim ? M.dims.find(d => d.id === selDim) : null;
+  const ws = [...sel].map(id => M.walls.find(w => w.id === id)).filter(Boolean);
+  let html, bind;
+
+  if(dm){
+    const medida = Math.hypot(dm.bx-dm.ax, dm.by-dm.ay);
+    html = pHead('Cota')
+         + pRow('do', 'Afastamento', dm.off,
+             'Distância da linha de cota até o que ela mede. Valor negativo joga a cota para o outro lado.')
+         + '<button class="del" id="p_ddel">Apagar cota</button>'
+         + pHint('Mede ' + U.fmt(medida) + ' ' + CFG.unit +
+                 '. Para mudar a medida, mova a cota com M ou refaça com DIM.');
+    bind = [['do', v => dm.off = clamp(v, -1e5, 1e5)]];
+  }else if(bx){
+    html = pHead('Móvel')
+         + pText('bn', 'Nome', bx.nome, 'Rótulo desenhado no centro da caixa na planta. Deixe vazio para não escrever nada.')
+         + pRow('bw', 'Largura', bx.w, 'Medida da caixa no seu próprio eixo X, antes da rotação.')
+         + pRow('bd', 'Profundidade', bx.d, 'Medida da caixa no seu próprio eixo Y, antes da rotação.')
+         + pRow('bh', 'Altura', bx.h, 'Altura da caixa a partir da base. É o que aparece extrudado no 3D.')
+         + pRow('bz', 'Base', bx.z, 'Altura em que a caixa começa, medida do piso. Use 0 para móvel apoiado no chão e um valor maior para armário aéreo ou prateleira.')
+         + '<div class="row" data-tip="Giro da caixa em torno do próprio centro, em graus, no sentido anti-horário."><label for="p_br">Rotação °</label>' +
+           '<input id="p_br" type="number" step="5" value="' + (+((bx.rot||0)*180/Math.PI).toFixed(1)) + '"></div>'
+         + pSwatches(bx.color)
+         + '<button class="del" id="p_bdel">Apagar móvel</button>';
+    bind = [
+      ['bw', v => bx.w = clamp(v, 10, 1e5)],
+      ['bd', v => bx.d = clamp(v, 10, 1e5)],
+      ['bh', v => bx.h = clamp(v, 10, 1e5)],
+      ['bz', v => bx.z = clamp(v, 0, 1e5)]
+    ];
+  }else if(op){
+    const w = M.walls.find(v => v.id === op.w);
+    const maxW = w ? wallLen(w) : 1e6;
+    const jan = op.kind === 'janela';
+    html = pHead(jan ? 'Janela' : 'Porta')
+         + pRow('ow', 'Largura', op.wid, 'Vão livre medido ao longo da parede.')
+         + pRow('oh', 'Altura', op.h, jan
+             ? 'Altura só do vidro, contada a partir do peitoril. Topo da janela = peitoril + altura.'
+             : 'Altura do vão contada do piso — o padrão brasileiro é 210.')
+         + (jan ? pRow('os', 'Peitoril', op.sill, 'Altura do piso até a base da janela. Zero transforma a janela em porta-balcão.') : '')
+         + pRow('od', 'Posição', op.d, 'Distância do início da parede até o centro do vão.')
+         + '<button class="del" id="p_odel">Apagar vão</button>';
+    bind = [
+      ['ow', v => { op.wid = clamp(v, 100, maxW); op.d = clamp(op.d, op.wid/2, maxW - op.wid/2); }],
+      ['oh', v => op.h = clamp(v, 100, 6000)],
+      ['os', v => op.sill = clamp(v, 0, 5000)],
+      ['od', v => op.d = clamp(v, op.wid/2, maxW - op.wid/2)]
+    ];
+  }else if(ws.length){
+    html = pHead(ws.length > 1 ? ws.length + ' paredes' : 'Parede')
+         + pRow('wt', 'Espessura', ws[0].t, TIP.esp)
+         + pRow('wh', 'Pé-direito', ws[0].h, TIP.alt)
+         + pHint(ws.length === 1
+             ? 'Comprimento ' + U.fmt(wallLen(ws[0])) + ' ' + CFG.unit + '.'
+             : 'A alteração vale para todas as selecionadas.');
+    bind = [
+      ['wt', v => { for(const w of ws) w.t = clamp(v, 20, 2000); }],
+      ['wh', v => { for(const w of ws) w.h = clamp(v, 200, 12000); }]
+    ];
+  }else if(tool === 'POR' || tool === 'JAN'){
+    const jan = tool === 'JAN';
+    html = pHead(jan ? 'Nova janela' : 'Nova porta')
+         + pRow('nw', 'Largura', jan ? CFG.winW : CFG.doorW, 'Vão livre da próxima peça inserida.')
+         + pRow('nh', 'Altura',  jan ? CFG.winH : CFG.doorH, jan
+             ? 'Altura só do vidro, a partir do peitoril.'
+             : 'Altura do vão a partir do piso.')
+         + (jan ? pRow('ns', 'Peitoril', CFG.winSill, 'Altura do piso até a base da janela.') : '')
+         + pHint('Clique sobre uma parede para inserir. Clique num vão existente para editá-lo.');
+    bind = jan
+      ? [['nw', v => CFG.winW = v], ['nh', v => CFG.winH = v], ['ns', v => CFG.winSill = v]]
+      : [['nw', v => CFG.doorW = v], ['nh', v => CFG.doorH = v]];
+  }else if(tool === 'CX'){
+    html = pHead('Novo móvel')
+         + pRow('mh', 'Altura', CFG.boxH, 'Altura da próxima caixa. Mesa 75, bancada 90, armário 220.')
+         + pRow('mz', 'Base', CFG.boxZ, 'Altura em que a próxima caixa começa. 0 no chão, 140 para um armário aéreo.')
+         + pSwatches(CFG.boxColor)
+         + pHint('Clique dois cantos opostos para criar a caixa. Largura e profundidade saem do arrasto.');
+    bind = [
+      ['mh', v => CFG.boxH = clamp(v, 10, 1e5)],
+      ['mz', v => CFG.boxZ = clamp(v, 0, 1e5)]
+    ];
+  }else{
+    html = pHead('Nova parede')
+         + pRow('ct', 'Espessura', CFG.wallT, TIP.esp)
+         + pRow('ch', 'Pé-direito', CFG.wallH, TIP.alt)
+         + pRow('cg', 'Grade', CFG.grid, TIP.grade)
+         + pHint(tool === 'L'
+             ? 'Clique os pontos; Enter finaliza a cadeia.'
+             : 'Escolha uma ferramenta, ou clique num objeto para editar.');
+    bind = [
+      ['ct', v => CFG.wallT = clamp(v, 20, 2000)],
+      ['ch', v => CFG.wallH = clamp(v, 200, 12000)],
+      ['cg', v => CFG.grid = Math.max(1, v)]
+    ];
+  }
+  el.innerHTML = html;
+
+  const live = !!(op || bx || dm || ws.length);   // edita o desenho, não só o padrão da ferramenta
+  for(const [id, apply] of bind){
+    const inp = $('p_' + id); if(!inp) continue;
+    inp.onchange = () => {
+      const v = parseFloat(String(inp.value).replace(',', '.'));
+      if(!isFinite(v)){ renderProps(); return; }
+      if(live) snapshot();
+      apply(U.toMM(v));
+      if(live){ dirty3d = true; persist(); }
+      renderProps(); draw();
+    };
+  }
+  if(bx){
+    const nome = $('p_bn');
+    if(nome) nome.onchange = () => { snapshot(); bx.nome = nome.value.slice(0, 24); persist(); draw(); };
+    const rot = $('p_br');
+    if(rot) rot.onchange = () => {
+      const v = parseFloat(String(rot.value).replace(',', '.'));
+      if(!isFinite(v)){ renderProps(); return; }
+      snapshot(); bx.rot = v*Math.PI/180;
+      dirty3d = true; persist(); renderProps(); draw();
+    };
+  }
+  for(const chip of el.querySelectorAll('.chip')){
+    chip.onclick = () => {
+      const c = chip.dataset.cor;
+      CFG.boxColor = c;
+      if(bx){ snapshot(); bx.color = c; dirty3d = true; persist(); }
+      renderProps(); draw();
+    };
+  }
+  const delOp = $('p_odel');
+  if(delOp) delOp.onclick = () => {
+    snapshot();
+    M.ops = M.ops.filter(o => o.id !== selOp);
+    selOp = null; dirty3d = true; persist();
+    log('  vão apagado');
+    syncTools(); draw();
+  };
+  const delBox = $('p_bdel');
+  if(delBox) delBox.onclick = () => {
+    snapshot();
+    M.boxes = M.boxes.filter(b => b.id !== selBox);
+    selBox = null; dirty3d = true; persist();
+    log('  móvel apagado');
+    syncTools(); draw();
+  };
+  const delDim = $('p_ddel');
+  if(delDim) delDim.onclick = () => {
+    snapshot();
+    M.dims = M.dims.filter(d => d.id !== selDim);
+    selDim = null; persist();
+    log('  cota apagada');
+    syncTools(); draw();
+  };
+}
+function setMode(m){
+  mode = m;
+  if(m === '3d' && !cam.init) initCam();
+  cv.classList.toggle('orbit', m === '3d');
+  syncUI();
+}
+function setUnit(u){
+  CFG.unit = u; CFG.uf = UNITS[u].f;
+  syncUI();
+}
+$('b2d').onclick = () => setMode('2d');
+$('b3d').onclick = () => setMode('3d');
+$('bOrto').onclick = () => startCmd('ORTO');
+$('bSnap').onclick = () => startCmd('GRADE');
+$('bOsnap').onclick = () => startCmd('OSNAP');
+$('bCota').onclick = () => startCmd('COTA');
+$('bUn').onclick = () => { const k = Object.keys(UNITS); setUnit(k[(k.indexOf(CFG.unit)+1)%k.length]); };
+$('bSalvar').onclick = salvarJSON;
+$('bAbrir').onclick = abrirJSON;
+$('bSvg').onclick = salvarSVG;
+$('bNovo').onclick = () => startCmd('NOVO');
+$('bAjuda').onclick = dlgHelp;
+
+/* ---- modais ---- */
+const modal = $('modal');
+function openModal(title, bodyHTML, footHTML){
+  $('mTitle').textContent = title;
+  $('mBody').innerHTML = bodyHTML;
+  $('mFoot').innerHTML = footHTML || '';
+  modal.classList.add('open');
+}
+function closeModal(){ modal.classList.remove('open'); cin.focus(); }
+$('mClose').onclick = closeModal;
+modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
+
+function copyBox(){
+  const ta = $('mBody').querySelector('textarea');
+  ta.select();
+  try{ document.execCommand('copy'); log('  copiado para a área de transferência', 'ok'); }
+  catch(e){ log('  selecione e copie manualmente', 'err'); }
+}
+/* ---- arquivos ---- */
+async function escreverArquivo(nome, texto, mime, desc){
+  const blob = new Blob([texto], {type: mime});
+  // 1) publicado como artifact: quem entrega o arquivo é o visualizador
+  if(typeof claude !== 'undefined' && claude && typeof claude.use === 'function'){
+    try{
+      const dl = await claude.use('downloads');
+      if(dl){
+        try{
+          await dl.save({filename: nome, data: texto});
+          return {ok:true, via:'viewer', nome};
+        }catch(err){
+          const code = err && err.code;
+          if(code === 'declined' || code === 'rate_limited') return {ok:false, via:'cancelado'};
+          return {ok:false, via:'erro', msg:(err && err.message) || code || 'recusado'};
+        }
+      }
+    }catch(err){ /* sem a capability: segue para os caminhos locais */ }
+  }
+  // 2) navegador com File System Access: diálogo Salvar como
+  if(window.showSaveFilePicker){
+    try{
+      const fh = await window.showSaveFilePicker({
+        suggestedName: nome,
+        types: [{description: desc, accept: {[mime]: ['.' + nome.split('.').pop()]}}]
+      });
+      const ws = await fh.createWritable();
+      await ws.write(blob); await ws.close();
+      return {ok:true, via:'picker', nome: fh.name || nome};
+    }catch(err){
+      if(err && err.name === 'AbortError') return {ok:false, via:'cancelado'};
+    }
+  }
+  // 3) último recurso: âncora com download
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nome; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return {ok:true, via:'download', nome};
+  }catch(err){
+    return {ok:false, via:'erro', msg: err.message};
+  }
+}
+function nomeBase(){
+  return 'planta-' + M.walls.length + 'p' + (M.boxes.length ? '-' + M.boxes.length + 'm' : '');
+}
+async function salvarJSON(){
+  const r = await escreverArquivo(nomeBase() + '.json', JSON.stringify(M), 'application/json', 'Desenho da Prancheta');
+  if(r.ok) log('  salvo em ' + r.nome, 'ok');
+  else if(r.via === 'cancelado') log('  salvamento cancelado');
+  else { log('  não foi possível gravar o arquivo aqui — abrindo o JSON para copiar', 'err'); dlgSave(); }
+  if(r.ok && r.via === 'download') log('  se o download não aparecer, use o comando JSON para copiar o texto');
+}
+async function salvarSVG(){
+  const r = await escreverArquivo(nomeBase() + '.svg', toSVG(), 'image/svg+xml', 'Desenho vetorial 1:1');
+  if(r.ok) log('  SVG salvo em ' + r.nome, 'ok');
+  else if(r.via === 'cancelado') log('  exportação cancelada');
+  else { log('  não foi possível gravar o arquivo aqui — abrindo o SVG para copiar', 'err'); dlgSvg(); }
+}
+function abrirJSON(){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.style.display = 'none';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if(f) lerArquivo(f);
+    inp.remove();
+  };
+  document.body.appendChild(inp);
+  inp.click();
+}
+function lerArquivo(file){
+  const fr = new FileReader();
+  fr.onload = () => { if(carregarDoc(fr.result)) log('  ' + file.name + ' carregado', 'ok'); };
+  fr.onerror = () => log('  falha ao ler ' + file.name, 'err');
+  fr.readAsText(file);
+}
+function carregarDoc(texto){
+  try{
+    const d = JSON.parse(texto);
+    if(!d || !Array.isArray(d.walls)) throw new Error('não parece um desenho da Prancheta');
+    snapshot();
+    M = {walls:d.walls, ops:d.ops||[], dims:d.dims||[], boxes:d.boxes||[], seq:d.seq||1000};
+    sel.clear(); selOp = null; selBox = null; selDim = null;
+    dirty3d = true; cam.init = false; glUp = false;
+    closeModal(); zoomExtents(); persist(); syncTools();
+    log('  ' + M.walls.length + ' paredes, ' + M.ops.length + ' vãos, ' + M.boxes.length + ' móveis');
+    return true;
+  }catch(err){
+    log('  erro ao ler o desenho: ' + err.message, 'err');
+    return false;
+  }
+}
+
+/* diálogos de texto, usados como saída de emergência quando gravar não é possível */
+function dlgSave(){
+  openModal('JSON do desenho',
+    '<p style="margin:0 0 10px;color:var(--ink-2)">Copie e guarde em um arquivo <code>.json</code>. Use <b>Abrir</b> ou arraste o arquivo sobre o desenho para restaurar.</p>' +
+    '<textarea readonly>' + escapeHTML(JSON.stringify(M)) + '</textarea>',
+    '<button onclick="copyBox()">Copiar</button><button onclick="closeModal()">Fechar</button>');
+}
+function dlgOpen(){
+  openModal('Colar desenho',
+    '<p style="margin:0 0 10px;color:var(--ink-2)">Cole o JSON de um desenho salvo.</p><textarea placeholder="{&quot;walls&quot;:[...]}"></textarea>',
+    '<button onclick="doOpen()">Carregar</button><button onclick="closeModal()">Fechar</button>');
+}
+function doOpen(){
+  const ta = $('mBody').querySelector('textarea');
+  carregarDoc(ta.value);
+}
+function dlgSvg(){
+  openModal('Exportar SVG',
+    '<p style="margin:0 0 10px;color:var(--ink-2)">SVG em escala 1:1 (unidade do arquivo = mm). Abre no Illustrator, Inkscape ou navegador.</p>' +
+    '<textarea readonly>' + escapeHTML(toSVG()) + '</textarea>',
+    '<button onclick="copyBox()">Copiar</button><button onclick="closeModal()">Fechar</button>');
+}
+function escapeHTML(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function toSVG(){
+  const bb = bbox() || {x0:0,y0:0,x1:1000,y1:1000};
+  const m = 1500;
+  const w = (bb.x1-bb.x0)+2*m, h = (bb.y1-bb.y0)+2*m;
+  const X = x => (x-bb.x0+m).toFixed(1);
+  const Y = y => (bb.y1+m-y).toFixed(1);
+  let s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + 'mm" height="' + h + 'mm" viewBox="0 0 ' + w.toFixed(0) + ' ' + h.toFixed(0) + '">\n';
+  // móveis primeiro, para as paredes ficarem por cima
+  if(M.boxes.length){
+    s += '<g stroke-width="6" font-family="sans-serif" font-size="150" text-anchor="middle">\n';
+    for(const b of M.boxes){
+      const pts = boxCorners(b).map(p => X(p.x) + ',' + Y(p.y)).join(' ');
+      const borda = darken(b.color, .45).replace('rgb(', 'rgb(');
+      s += '<polygon points="' + pts + '" fill="' + b.color + '" stroke="' + borda + '"/>';
+      if(b.nome) s += '<text x="' + X(b.x) + '" y="' + Y(b.y) + '" dy="52" fill="' +
+                      darken(b.color, .58) + '" stroke="none">' + escapeHTML(b.nome) + '</text>';
+      s += '\n';
+    }
+    s += '</g>\n';
+  }
+  s += '<g fill="#1a1a1a" stroke="none">\n';
+  for(const wl of M.walls){
+    const u = wallDir(wl), n = wallNorm(wl), half = wl.t/2;
+    for(const [d0,d1] of solidSpans(wl)){
+      const pts = [
+        [wl.ax+u.x*d0+n.x*half, wl.ay+u.y*d0+n.y*half],
+        [wl.ax+u.x*d1+n.x*half, wl.ay+u.y*d1+n.y*half],
+        [wl.ax+u.x*d1-n.x*half, wl.ay+u.y*d1-n.y*half],
+        [wl.ax+u.x*d0-n.x*half, wl.ay+u.y*d0-n.y*half]
+      ].map(p => X(p[0]) + ',' + Y(p[1])).join(' ');
+      s += '<polygon points="' + pts + '"/>\n';
+    }
+  }
+  s += '</g>\n<g stroke="#1a1a1a" stroke-width="8" fill="none" font-family="sans-serif" font-size="180">\n';
+  const c = centroid();
+  const dimSVG = (a,b,off) => {
+    const L = dist(a,b); if(L < 1) return '';
+    const u = {x:(b.x-a.x)/L, y:(b.y-a.y)/L}, n = {x:-u.y, y:u.x};
+    const A = {x:a.x+n.x*off, y:a.y+n.y*off}, B = {x:b.x+n.x*off, y:b.y+n.y*off};
+    let ang = Math.atan2(-(B.y-A.y)*0 + (B.y-A.y), B.x-A.x)*180/Math.PI;
+    ang = -ang; if(ang > 90 || ang < -90) ang += 180;
+    const mx = (A.x+B.x)/2, my = (A.y+B.y)/2;
+    return '<path d="M' + X(A.x) + ',' + Y(A.y) + ' L' + X(B.x) + ',' + Y(B.y) + '"/>' +
+      '<path d="M' + X(a.x) + ',' + Y(a.y) + ' L' + X(A.x) + ',' + Y(A.y) + '" stroke-width="4"/>' +
+      '<path d="M' + X(b.x) + ',' + Y(b.y) + ' L' + X(B.x) + ',' + Y(B.y) + '" stroke-width="4"/>' +
+      '<text x="' + X(mx) + '" y="' + Y(my) + '" transform="rotate(' + ang.toFixed(2) + ' ' + X(mx) + ' ' + Y(my) + ')" ' +
+      'dy="-60" text-anchor="middle" fill="#1a1a1a" stroke="none">' + U.fmt(L) + '</text>\n';
+  };
+  if(CFG.autoDim){
+    for(const wl of M.walls){
+      const n = wallNorm(wl);
+      const mid = {x:(wl.ax+wl.bx)/2, y:(wl.ay+wl.by)/2};
+      const away = ((mid.x-c.x)*n.x + (mid.y-c.y)*n.y) >= 0 ? 1 : -1;
+      s += dimSVG({x:wl.ax,y:wl.ay}, {x:wl.bx,y:wl.by}, away*(wl.t/2+350));
+    }
+  }
+  for(const d of M.dims) s += dimSVG({x:d.ax,y:d.ay}, {x:d.bx,y:d.by}, d.off);
+  s += '</g>\n</svg>';
+  return s;
+}
+
+function dlgHelp(){
+  const rows = [
+    ['Desenho', [
+      ['Barra lateral', 'Cada ferramenta tem botão à esquerda; o painel abaixo dela traz as medidas.'],
+      ['L · PAREDE', 'Cadeia de paredes. Enter ou botão direito finaliza.'],
+      ['POR [larg]', 'Insere porta na parede clicada (padrão 80 × 210).'],
+      ['JAN [larg]', 'Insere janela (padrão 120 × 120, peitoril 90).'],
+      ['Clique num vão', 'Seleciona a porta ou janela e abre largura, altura, peitoril e posição.'],
+      ['CX · MÓVEL', 'Caixa por dois cantos opostos: mesa, cama, armário, bancada.'],
+      ['COR 1..8', 'Escolhe o pastel do móvel — também clicável no painel de propriedades.'],
+      ['Clique num móvel', 'Abre nome, largura, profundidade, altura, base, rotação e cor.'],
+      ['Clique numa cota', 'Seleciona a cota manual e abre o afastamento. Clicar numa cota automática seleciona a parede que ela mede.'],
+      ['DIM', 'Cota manual: 2 extremidades + posição da linha.'],
+      ['DI', 'Mede distância, Δx, Δy e ângulo entre 2 pontos.']
+    ]],
+    ['Edição', [
+      ['E · Delete', 'Apaga a seleção, ou pede uma parede.'],
+      ['M', 'Move a seleção: ponto base → ponto destino.'],
+      ['CO', 'Copia a seleção.'],
+      ['U · Ctrl+Z', 'Desfaz.'],
+      ['RE · Ctrl+Y', 'Refaz.']
+    ]],
+    ['Entrada de pontos', [
+      ['300,150', 'Coordenada absoluta X,Y na unidade atual.'],
+      ['@300,0', 'Coordenada relativa ao último ponto.'],
+      ['@400&lt;90', 'Polar relativa: distância &lt; ângulo em graus.'],
+      ['300', 'Distância direta: usa a direção do cursor (com Orto).']
+    ]],
+    ['Vista e modos', [
+      ['Z', 'Zoom estendido. Roda do mouse = zoom no cursor.'],
+      ['Alt+arrastar / botão do meio', 'Desloca a vista (pan).'],
+      ['F8 · F9 · F3', 'Orto · snap na grade · osnap.'],
+      ['Snap nas faces', 'Com osnap ligado, o cursor gruda na face da parede e nos cantos de cômodo, não no eixo — é o que faz o móvel encostar sem invadir a alvenaria. Desenhando parede, o eixo volta a ter prioridade.'],
+      ['3D', 'Alterna vista 3D. Arrastar orbita, Shift+arrastar desloca.'],
+      ['COTA', 'Liga/desliga cotas automáticas.']
+    ]],
+    ['Ajustes e arquivo', [
+      ['ESP 15', 'Espessura da parede.'],
+      ['ALT 280', 'Pé-direito.'],
+      ['PALT 210', 'Altura padrão de porta.'],
+      ['JALT 120', 'Altura padrão de janela.'],
+      ['PEIT 90', 'Peitoril padrão de janela.'],
+      ['GRADE 10', 'Passo da grade.'],
+      ['UN cm', 'Unidade de trabalho: mm, cm ou m.'],
+      ['SALVAR', 'Grava um arquivo .json no computador.'],
+      ['ABRIR', 'Escolhe um .json e recarrega. Arrastar o arquivo sobre a planta também funciona.'],
+      ['SVG', 'Grava um .svg em escala 1:1.'],
+      ['JSON · COLAR', 'Mostra ou recebe o desenho como texto, para quando gravar arquivo não for possível.'],
+      ['EXEMPLO', 'Carrega uma planta de demonstração.']
+    ]]
+  ];
+  let html = '<p style="margin:0 0 4px;color:var(--ink-2)">Digite os comandos na barra inferior. Enter com a linha vazia repete o último comando; Esc cancela.</p>';
+  for(const [cap, items] of rows){
+    html += '<table class="help"><caption>' + cap + '</caption><tbody>';
+    for(const [k,v] of items) html += '<tr><td>' + k + '</td><td>' + v + '</td></tr>';
+    html += '</tbody></table>';
+  }
+  openModal('Comandos', html, '<button onclick="closeModal()">Fechar</button>');
+}
+
+/* ---------------- planta de demonstração ---------------- */
+function demo(){
+  M = {walls:[], ops:[], dims:[], boxes:[], seq:1};
+  const P = (x,y) => ({x:x*10, y:y*10});   // em cm
+  const chain = pts => { for(let i=0;i<pts.length-1;i++) addWall(pts[i], pts[i+1]); };
+  chain([P(0,0),P(900,0),P(900,650),P(0,650),P(0,0)]);            // perímetro
+  chain([P(380,0),P(380,400)]);                                    // divisória vertical
+  chain([P(380,400),P(900,400)]);                                  // divisória horizontal
+  chain([P(0,400),P(380,400)]);
+  const byEnds = (ax,ay,bx,by) => M.walls.find(w =>
+    (Math.abs(w.ax-ax*10)<1 && Math.abs(w.ay-ay*10)<1 && Math.abs(w.bx-bx*10)<1 && Math.abs(w.by-by*10)<1));
+  const add = (w, d, kind) => { if(w) M.ops.push({id:M.seq++, w:w.id, d:d*10, wid: kind==='porta'?800:1200,
+      kind, h: kind==='porta'?2100:1200, sill: kind==='porta'?0:900}); };
+  add(byEnds(0,0,900,0), 200, 'janela');
+  add(byEnds(0,0,900,0), 650, 'porta');
+  add(byEnds(900,650,0,650), 250, 'janela');
+  add(byEnds(380,0,380,400), 300, 'porta');
+  add(byEnds(380,400,900,400), 120, 'porta');
+  add(byEnds(0,400,380,400), 190, 'porta');
+  add(byEnds(900,0,900,650), 200, 'janela');
+
+  // móveis: x, y, largura, profundidade em cm; altura e base em cm
+  const mob = (x, y, w, d, h, z, cor, nome) => M.boxes.push({
+    id:M.seq++, x:x*10, y:y*10, w:w*10, d:d*10, rot:0,
+    h:h*10, z:z*10, color:cor, nome
+  });
+  // encostados nas FACES das paredes (eixo ± 7,5), não no eixo
+  mob(190,   507.5, 160, 200,  55,   0, PALETA[0].c, 'Cama');     // dormitório
+  mob( 37.5, 545,    60,  50, 220,   0, PALETA[5].c, 'Armário');
+  mob(640,   530,   200,  90,  75,   0, PALETA[1].c, 'Mesa');     // sala
+  mob(832.5, 200,   120,  60,  90,   0, PALETA[3].c, 'Bancada');  // cozinha
+  mob(832.5, 330,   120,  35,  70, 140, PALETA[2].c, 'Aéreo');    // armário suspenso
+  dirty3d = true;
+}
+
+/* ---------------- boot ---------------- */
+resize();
+if(!loadPersisted()) demo();
+setUnit('cm');
+zoomExtents();
+log('Prancheta CAD — planta baixa em escala real.');
+log('Digite AJUDA para a lista de comandos, ou L para começar uma parede.', 'ok');
+setPrompt('Comando:');
+cin.focus();
+document.addEventListener('click', e => {
+  if(!modal.classList.contains('open') && !e.target.closest('button, input')) cin.focus();
+});
+</script>

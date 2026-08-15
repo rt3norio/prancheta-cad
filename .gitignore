@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# desenhos gerados pelo próprio editor
+planta-*.json
+planta-*.svg
