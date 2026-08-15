@@ -137,9 +137,44 @@ t('normais unitárias', () => {
     if (Math.abs(L - 1) > 1e-6) throw new Error('normal |n|=' + L);
   }
 });
-t('altura das faces respeita o pé-direito', () => {
-  let zmax = 0; for (const q of A.quads()) for (const v of q.v) zmax = Math.max(zmax, v[2]);
-  near(zmax, A.CFG.wallH, 1, 'z máximo');
+const topoDe = tipo => {
+  let z = 0;
+  for (const q of A.quads()) if (q.c === tipo) for (const v of q.v) z = Math.max(z, v[2]);
+  return z;
+};
+const comCorte = (valor, fn) => {
+  const c0 = A.CFG.corte3d;
+  A.CFG.corte3d = valor; A.build3D();
+  try { return fn(); } finally { A.CFG.corte3d = c0; A.build3D(); }
+};
+t('sem corte, as paredes sobem até o pé-direito', () =>
+  comCorte(0, () => near(topoDe('wall'), A.CFG.wallH, 1, 'topo das paredes')));
+t('com corte, as paredes param na altura de corte', () =>
+  comCorte(1200, () => near(topoDe('wall'), 1200, 1, 'topo das paredes')));
+t('o corte não encurta os móveis', () => {
+  const maisAlto = Math.max(...A.M.boxes.map(b => (b.z || 0) + b.h));
+  comCorte(1200, () => near(topoDe('box'), maisAlto, 1, 'topo dos móveis'));
+});
+t('corte acima do pé-direito é o mesmo que não cortar', () => {
+  const sem = comCorte(0, () => A.quads().length);
+  const alto = comCorte(999999, () => A.quads().length);
+  eq(alto, sem, 'número de faces');
+});
+t('o corte preserva os vãos que ficam abaixo dele', () => {
+  // porta de 210 cortada a 120: o vão continua vazado, sem verga
+  comCorte(1200, () => {
+    const w = A.M.walls.find(v => A.opsOf(v).some(o => o.kind === 'porta'));
+    const o = A.opsOf(w).find(x => x.kind === 'porta');
+    const L = A.wallLen(w), u = {x:(w.bx-w.ax)/L, y:(w.by-w.ay)/L};
+    const cx = w.ax + u.x*o.d, cy = w.ay + u.y*o.d;
+    for (const q of A.quads()) {
+      if (q.c !== 'wall') continue;
+      const qx = q.v.reduce((s,v)=>s+v[0],0)/4, qy = q.v.reduce((s,v)=>s+v[1],0)/4;
+      const qz = q.v.reduce((s,v)=>s+v[2],0)/4;
+      if (Math.hypot(qx-cx, qy-cy) < o.wid/4 && qz > 10 && qz < 1190)
+        throw new Error('apareceu parede dentro do vão da porta depois do corte');
+    }
+  });
 });
 t('vão de porta fica vazado (nenhuma face sólida dentro do vão)', () => {
   const w = A.M.walls.find(v => A.opsOf(v).some(o => o.kind === 'porta'));
@@ -380,6 +415,40 @@ t('cotas automáticas ficam fora da parede que medem', () => {
     const meio = {x:(l.a.x+l.b.x)/2, y:(l.a.y+l.b.y)/2};
     if (A.dentroDeParede(meio))
       throw new Error('a cota da parede#' + d.wall.id + ' foi parar dentro da alvenaria');
+  }
+});
+t('as cotas gerais do contorno ficam FORA do desenho, nos dois eixos', () => {
+  const bb = A.bbox();
+  const gerais = A.autoDims().filter(d => d.geral);
+  eq(gerais.length, 2, 'cotas gerais');
+  for (const d of gerais) {
+    const l = A.dimLine(d);
+    const meio = {x:(l.a.x+l.b.x)/2, y:(l.a.y+l.b.y)/2};
+    const dentro = meio.x > bb.x0 && meio.x < bb.x1 && meio.y > bb.y0 && meio.y < bb.y1;
+    if (dentro)
+      throw new Error('cota geral de ' + d.geral + ' caiu dentro do desenho, em (' +
+        meio.x.toFixed(0) + ',' + meio.y.toFixed(0) + ') — atravessa a planta e os móveis');
+  }
+});
+t('as cotas gerais medem o contorno inteiro', () => {
+  const bb = A.bbox();
+  const g = Object.fromEntries(A.autoDims().filter(d => d.geral).map(d => [d.geral, d]));
+  near(Math.hypot(g.largura.bx-g.largura.ax, g.largura.by-g.largura.ay), bb.x1-bb.x0, 1, 'largura');
+  near(Math.hypot(g.altura.bx-g.altura.ax, g.altura.by-g.altura.ay), bb.y1-bb.y0, 1, 'altura');
+});
+t('nenhuma cota geral passa por cima de um móvel', () => {
+  for (const d of A.autoDims().filter(v => v.geral)) {
+    const l = A.dimLine(d);
+    for (const b of A.M.boxes) {
+      const c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
+      for (let i = 0; i <= 20; i++) {                    // amostra ao longo da linha de cota
+        const p = {x: l.a.x + (l.b.x-l.a.x)*i/20, y: l.a.y + (l.b.y-l.a.y)*i/20};
+        const dx = p.x - b.x, dy = p.y - b.y;
+        const u = dx*c + dy*s, v = -dx*s + dy*c;
+        if (Math.abs(u) < b.w/2 && Math.abs(v) < b.d/2)
+          throw new Error('a cota geral de ' + d.geral + ' cruza "' + (b.nome || b.id) + '"');
+      }
+    }
   }
 });
 t('com COTAS desligado, nada de cota automática responde ao clique', () => {

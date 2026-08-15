@@ -248,6 +248,7 @@
     <div class="grp">
       <button id="b2d" class="on" data-tip="Planta baixa em escala real: é onde você desenha.">2D</button>
       <button id="b3d" data-tip="Vista tridimensional das paredes e móveis extrudados. Arrastar orbita, roda dá zoom. Só para conferir — não se desenha nela.">3D</button>
+      <button id="bCorte" class="on" data-tip="Corta as paredes a 120 no 3D, como uma maquete aberta. Sem o corte, um pé-direito de 280 esconde todo o mobiliário e você só enxerga a casa por fora. Desligue para ver as fachadas fechadas.">Corte</button>
     </div>
 
     <div class="grp">
@@ -362,6 +363,9 @@ const PALETA = [
   {n:'Pedra',     c:'#D2D6D1'}
 ];
 CFG.boxH = 750; CFG.boxZ = 0; CFG.boxColor = PALETA[0].c;
+/* altura de corte das paredes no 3D: sem ela, um pé-direito de 280 esconde
+   todo o mobiliário e a vista deixa de servir para conferir o leiaute */
+CFG.corte3d = 1200;
 
 /* ---------------- modelo ---------------- */
 let M = {walls:[], ops:[], dims:[], boxes:[], seq:1};
@@ -941,6 +945,18 @@ defc(['Z','ZOOM'],  {start(){ zoomExtents(); endCmd('  zoom estendido'); }});
 defc(['U','DESFAZER'], {start(){ restore(undoStack, redoStack) ? endCmd('  desfeito') : endCmd('  nada a desfazer'); }});
 defc(['RE','REFAZER'], {start(){ restore(redoStack, undoStack) ? endCmd('  refeito') : endCmd('  nada a refazer'); }});
 defc(['3D'], {start(){ setMode(mode === '3d' ? '2d' : '3d'); endCmd('  vista ' + mode.toUpperCase()); }});
+defc(['CORTE'], {start(c,a){
+  if(a !== undefined && a !== ''){
+    const v = parseFloat(String(a).replace(',','.'));
+    if(!isFinite(v) || v < 0){ endCmd('  uso: CORTE <altura> ou CORTE para ligar/desligar'); return; }
+    CFG.corte3d = U.toMM(v);
+  }else{
+    CFG.corte3d = CFG.corte3d > 0 ? 0 : 1200;
+  }
+  dirty3d = true; syncUI();
+  endCmd(CFG.corte3d > 0 ? '  corte das paredes em ' + U.fmt(CFG.corte3d) + ' ' + CFG.unit
+                         : '  corte desligado: paredes inteiras');
+}});
 defc(['ESP'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); endCmd('  espessura = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ESP <valor>'); }});
 defc(['ALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); endCmd('  pé-direito = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ALT <valor>'); }});
 defc(['PALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); endCmd('  altura de porta = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PALT <valor>'); }});
@@ -1027,8 +1043,10 @@ function autoDims(){
   }
   const bb = bbox();
   if(bb && M.walls.length > 1){
+    // a normal de um segmento vertical aponta para -x, então o afastamento que
+    // joga a cota para fora do desenho é negativo nos dois casos
     out.push({geral:'largura', ax:bb.x0, ay:bb.y0, bx:bb.x1, by:bb.y0, off:-1100});
-    out.push({geral:'altura',  ax:bb.x1, ay:bb.y0, bx:bb.x1, by:bb.y1, off: 1100});
+    out.push({geral:'altura',  ax:bb.x1, ay:bb.y0, bx:bb.x1, by:bb.y1, off:-1100});
   }
   return out;
 }
@@ -1488,18 +1506,20 @@ function build3D(){
   }
   for(const w of M.walls){
     const L = wallLen(w); if(L < 1) continue;
+    const hMax = CFG.corte3d > 0 ? Math.min(w.h, CFG.corte3d) : w.h;
+    if(hMax < 1) continue;
     const u = wallDir(w), n = wallNorm(w), half = w.t/2;
     const P = (d,s,z) => [w.ax + u.x*d + n.x*half*s, w.ay + u.y*d + n.y*half*s, z];
 
     const ops = opsOf(w).map(o => ({
       d0: clamp(o.d - o.wid/2, 0, L),
       d1: clamp(o.d + o.wid/2, 0, L),
-      z0: clamp(o.sill, 0, w.h),
-      z1: clamp(o.sill + o.h, 0, w.h)
+      z0: clamp(o.sill, 0, hMax),
+      z1: clamp(o.sill + o.h, 0, hMax)
     })).filter(o => o.d1 > o.d0 && o.z1 > o.z0);
 
     const D = uniqSort([0, L, ...ops.flatMap(o => [o.d0,o.d1])]);
-    const Z = uniqSort([0, w.h, ...ops.flatMap(o => [o.z0,o.z1])]);
+    const Z = uniqSort([0, hMax, ...ops.flatMap(o => [o.z0,o.z1])]);
     const nd = D.length-1, nz = Z.length-1;
     const fill = [];
     for(let i=0;i<nd;i++){
@@ -2018,6 +2038,7 @@ function syncUI(){
   $('bCota').classList.toggle('on', CFG.autoDim);
   $('b2d').classList.toggle('on', mode === '2d');
   $('b3d').classList.toggle('on', mode === '3d');
+  $('bCorte').classList.toggle('on', CFG.corte3d > 0);
   $('bUn').textContent = CFG.unit;
   syncTools();
   draw();
@@ -2270,6 +2291,7 @@ $('bSnap').onclick = () => startCmd('GRADE');
 $('bOsnap').onclick = () => startCmd('OSNAP');
 $('bCota').onclick = () => startCmd('COTA');
 $('bUn').onclick = () => { const k = Object.keys(UNITS); setUnit(k[(k.indexOf(CFG.unit)+1)%k.length]); };
+$('bCorte').onclick = () => startCmd('CORTE');
 $('bSalvar').onclick = salvarJSON;
 $('bAbrir').onclick = abrirJSON;
 $('bSvg').onclick = salvarSVG;
@@ -2510,6 +2532,7 @@ function dlgHelp(){
       ['F8 · F9 · F3', 'Orto · snap na grade · osnap.'],
       ['Snap nas faces', 'Com osnap ligado, o cursor gruda na face da parede e nos cantos de cômodo, não no eixo — é o que faz o móvel encostar sem invadir a alvenaria. Desenhando parede, o eixo volta a ter prioridade.'],
       ['3D', 'Alterna vista 3D. Arrastar orbita, Shift+arrastar desloca.'],
+      ['CORTE [alt]', 'Corta as paredes no 3D para enxergar o interior. Sem argumento, liga e desliga.'],
       ['COTA', 'Liga/desliga cotas automáticas.']
     ]],
     ['Ajustes e arquivo', [

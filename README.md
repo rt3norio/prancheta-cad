@@ -1,3 +1,5 @@
+**Português** · [English](README.en.md)
+
 # Prancheta CAD
 
 Editor de **planta baixa** que roda no navegador, em escala real, com cotas
@@ -104,6 +106,7 @@ Os quatro formatos, sempre na unidade de trabalho corrente:
 | `UN mm\|cm\|m` | Unidade de trabalho |
 | `Z` | Zoom estendido |
 | `3D` | Alterna a vista tridimensional |
+| `CORTE 120` | Altura de corte das paredes no 3D; sem argumento, liga e desliga |
 | `AJUDA` | Lista completa dentro do próprio editor |
 
 ### Atalhos
@@ -157,6 +160,11 @@ aéreo e prateleira.
 
 Renderiza em WebGL com z-buffer real. Arrastar orbita, `Shift+arrastar` desloca,
 roda dá zoom. Sem WebGL, cai num renderizador por software.
+
+O botão **Corte** (comando `CORTE`) apara as paredes a 120 cm, como uma maquete
+aberta. Sem ele, um pé-direito de 280 cm esconde todo o mobiliário e você só enxerga
+a casa por fora — vem ligado por isso. Desligue para conferir as fachadas fechadas,
+ou passe uma altura: `CORTE 90`.
 
 ---
 
@@ -231,14 +239,15 @@ Algumas decisões que valem ser conhecidas por quem for mexer:
 node test.mjs prancheta.html
 ```
 
-87 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
+94 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
 contexto com o DOM stubado e um canvas instrumentado, e verifica a geometria de
 verdade — vãos vazados no 3D, matrizes de câmera, snap nas faces, hit-test de cada
 tipo de objeto, ida e volta pelo arquivo e o SVG exportado.
 
 As seções marcadas `REGRESSÃO:` travam bugs que já aconteceram e não devem voltar:
 o piso saltando na frente das paredes, a porta que não era selecionável pela folha
-nem pelo arco, e as cotas sem hit-test nenhum.
+nem pelo arco, as cotas sem hit-test nenhum, e a cota geral desenhada por dentro da
+planta em vez de por fora.
 
 ---
 
