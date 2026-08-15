@@ -74,7 +74,7 @@ src += `
 globalThis.__api = { get M(){ return M; }, CFG, view, cam, U, quads: () => quads,
   build3D, solidSpans, toSVG, parsePoint, demo, addWall, wallLen, bbox, centroid,
   setMode, startCmd, render, render3D, render3DSoft, zoomExtents, opsOf,
-  mode: () => mode, sel, CMDS, initCam, feedPoint, getAC: () => AC,
+  mode: () => mode, sel, CMDS, initCam, feedPoint, getAC: () => AC, lastCmd: () => lastCmd,
   pickOpening, pickWall, pickBox, renderProps, syncTools, matPersp, matLookAt, matMul,
   getSelOp: () => selOp, setSelOp: v => { selOp = v; },
   getSelBox: () => selBox, setSelBox: v => { selBox = v; },
@@ -650,6 +650,88 @@ t('SVG inclui os móveis com a cor e continua bem formado', () => {
   const close = (s.match(/<\//g) || []).length + (s.match(/\/>/g) || []).length;
   eq(open, close, 'tags abertas vs fechadas');
 });
+console.log('\nREGRESSÃO: ORTO IMPEDIA DESENHAR MÓVEL');
+t('com Orto ligado, os dois cantos do móvel continuam livres', () => {
+  A.CFG.ortho = true;
+  A.startCmd('CX');
+  const a = {x: 20000, y: 20000};
+  A.feedPoint(a);
+  const p = A.snapPoint({x: a.x + 1600, y: a.y + 800}, a);
+  if (Math.abs(p.x - a.x) < 1 || Math.abs(p.y - a.y) < 1)
+    throw new Error('o Orto colapsou o retângulo: (' + (p.x-a.x) + ',' + (p.y-a.y) + ')');
+  A.feedPoint(p);
+  const b = A.M.boxes[A.M.boxes.length - 1];
+  if (b.w < 10 || b.d < 10) throw new Error('móvel sem área: ' + b.w + '×' + b.d);
+  near(b.w, 1600, 60, 'largura'); near(b.d, 800, 60, 'profundidade');
+  A.M.boxes.pop();
+});
+t('o Orto continua valendo para parede', () => {
+  A.CFG.ortho = true;
+  A.startCmd('L');
+  const a = {x: 20000, y: 20000};
+  A.feedPoint(a);
+  const p = A.snapPoint({x: a.x + 3000, y: a.y + 400}, a);
+  near(p.y, a.y, 1, 'o traço travou na horizontal');
+  A.startCmd('Z');
+});
+
+console.log('\nREGRESSÃO: TROCAR DE MODO CANCELAVA O COMANDO');
+const MODOS = [
+  ['ORTO', () => A.CFG.ortho], ['OSNAP', () => A.CFG.osnap],
+  ['GRADE', () => A.CFG.snapGrid], ['RASTRO', () => A.CFG.track],
+  ['COTA', () => A.CFG.autoDim], ['CORTE', () => A.CFG.corte3d > 0]
+];
+t('alternar um modo no meio do desenho não cancela o comando', () => {
+  for (const [cmd, ler] of MODOS) {
+    A.startCmd('L');
+    A.feedPoint({x: 20000, y: 20000});         // já com um ponto colocado
+    const antes = ler();
+    A.startCmd(cmd);
+    const ac = A.getAC();
+    if (!ac) throw new Error(cmd + ' cancelou o comando em andamento');
+    eq(ac.spec.key, 'L', cmd + ': comando ativo trocou');
+    eq(ac.pts.length, 1, cmd + ': o ponto já colocado se perdeu');
+    if (ler() === antes) throw new Error(cmd + ' não chegou a alternar o modo');
+    A.startCmd(cmd);                            // devolve ao estado original
+    A.startCmd('Z');
+  }
+});
+t('ajustar medida no meio do desenho também não cancela', () => {
+  A.startCmd('L');
+  A.feedPoint({x: 20000, y: 20000});
+  A.startCmd('ESP', '25');
+  near(A.CFG.wallT, 250, .01, 'espessura aplicada');
+  const ac = A.getAC();
+  if (!ac || ac.spec.key !== 'L') throw new Error('ESP cancelou o desenho');
+  eq(ac.pts.length, 1, 'o ponto se perdeu');
+  A.startCmd('ESP', '15');
+  A.startCmd('Z');
+});
+t('zoom é transparente e preserva o desenho em andamento', () => {
+  A.startCmd('L');
+  A.feedPoint({x: 20000, y: 20000});
+  A.startCmd('Z');
+  const ac = A.getAC();
+  if (!ac || ac.spec.key !== 'L') throw new Error('o zoom cancelou o desenho');
+  eq(ac.pts.length, 1, 'o ponto se perdeu');
+  A.startCmd('E');                             // encerra de fato
+  A.startCmd('Z');
+});
+t('um comando transparente não vira o "último comando" repetido pelo Enter', () => {
+  A.startCmd('L'); A.startCmd('Z');            // L é de desenho, Z é transparente
+  A.startCmd('ORTO'); A.startCmd('ORTO');
+  eq(A.lastCmd(), 'L', 'Enter repetiria o toggle em vez do desenho');
+});
+t('comandos de desenho continuam encerrando o anterior', () => {
+  A.startCmd('L');
+  A.feedPoint({x: 20000, y: 20000});
+  A.startCmd('CX');
+  const ac = A.getAC();
+  eq(ac.spec.key, 'CX', 'a ferramenta deveria ter trocado');
+  eq(ac.pts.length, 0, 'a nova ferramenta começou suja');
+  A.startCmd('Z');
+});
+
 console.log('\nPAN');
 t('a ferramenta Pan existe e é reconhecida por P, PAN e DESLOCAR', () => {
   for (const k of ['P', 'PAN', 'DESLOCAR'])
@@ -664,11 +746,25 @@ t('Pan fica ativa até ser encerrada, sem consumir cliques', () => {
   if (ac.spec.point) throw new Error('Pan não deveria consumir pontos do desenho');
   A.startCmd('Z');
 });
-t('encerrar o Pan devolve o cursor ao normal', () => {
+t('Esc encerra o Pan e devolve o cursor ao normal', () => {
   A.startCmd('P');
   if (!els['cv'].classList.contains('pan')) throw new Error('cursor de pan não foi aplicado');
-  A.startCmd('Z');                                  // outro comando encerra o anterior
+  A.tecla({key:'Escape'});
   if (els['cv'].classList.contains('pan')) throw new Error('cursor de pan ficou preso');
+});
+t('escolher outra ferramenta encerra o Pan', () => {
+  A.startCmd('P');
+  A.startCmd('L');                                  // ferramenta de desenho, não transparente
+  if (els['cv'].classList.contains('pan')) throw new Error('cursor de pan ficou preso');
+  A.tecla({key:'Escape'});
+});
+t('um comando transparente NÃO encerra o Pan', () => {
+  A.startCmd('P');
+  A.startCmd('ORTO'); A.startCmd('ORTO');           // alterna e volta
+  const ac = A.getAC();
+  if (!ac || ac.spec.key !== 'P') throw new Error('o toggle derrubou o Pan');
+  if (!els['cv'].classList.contains('pan')) throw new Error('o cursor de pan se perdeu');
+  A.tecla({key:'Escape'});
 });
 t('as setas deslocam a vista e o Shift acelera', () => {
   const x0 = A.view.x, y0 = A.view.y;
@@ -793,9 +889,11 @@ t('desligar o rastreio limpa os pontos e para de interferir', () => {
   A.startCmd('RASTRO'); A.startCmd('Z');
 });
 t('terminar um comando limpa os pontos adquiridos', () => {
+  A.startCmd('L');
   A.limpaRastro();
   A.consideraAquisicao(canto(), 'ext'); dispararTimers();
-  A.startCmd('Z');                                    // comando imediato: chama endCmd
+  eq(A.track().length, 1, 'adquirido durante o comando');
+  A.tecla({key:'Escape'});                            // encerra de verdade
   eq(A.track().length, 0, 'rastreio limpo ao encerrar o comando');
 });
 
@@ -912,7 +1010,8 @@ t('com o console fechado, o prompt do comando vai para o indicador', () => {
 });
 t('o aviso do resultado sobrevive ao fim do comando e depois some sozinho', () => {
   A.setConsole(false);
-  A.startCmd('Z');                       // comando imediato: loga o resultado e encerra
+  A.startCmd('L');
+  A.tecla({key:'Escape'});                // endCmd loga e repõe o prompt no mesmo instante
   const el = els['dica'];
   if (!el.classList.contains('on'))
     throw new Error('o aviso sumiu no mesmo instante em que endCmd repôs o prompt');
@@ -1100,6 +1199,64 @@ t('arestas dos móveis também dão snap, para alinhar um no outro', () => {
   near(p.x, c[0].x, 1, 'x do canto do móvel'); near(p.y, c[0].y, 1, 'y do canto do móvel');
   A.startCmd('Z');
 });
+console.log('\nREGRESSÃO: SNAP DE FACE PERDIA O ORTO');
+/* parede leste da planta: vertical em x=9000, faces em x=8925 e x=9075 */
+const paredeLeste = () => A.M.walls.find(w =>
+  Math.abs(w.ax - 9000) < 1 && Math.abs(w.bx - 9000) < 1 && Math.abs(w.by - w.ay) > 1000);
+t('a planta tem a parede vertical de referência', () => {
+  if (!paredeLeste()) throw new Error('parede leste não encontrada');
+});
+t('encostar na face mantendo o traço ortogonal ao ponto base', () => {
+  const w = paredeLeste(), faceInterna = 9000 - w.t/2;
+  A.CFG.ortho = true; A.CFG.osnap = true;
+  A.startCmd('L');
+  const base = {x: 3000, y: 5000};   // trecho da parede leste sem móveis por perto
+  A.feedPoint(base);
+  // cursor perto da face interna, mas 12 cm acima da horizontal do ponto base
+  const p = A.snapPoint({x: faceInterna + 25, y: base.y + 120}, base);
+  near(p.x, faceInterna, 1, 'x parou na face');
+  near(p.y, base.y, 1, 'y manteve a ortogonal do ponto base');
+  A.tecla({key:'Escape'});
+});
+t('o mesmo vale para a face externa da parede', () => {
+  const w = paredeLeste(), faceExterna = 9000 + w.t/2;
+  A.startCmd('L');
+  const base = {x: 3000, y: 5000};   // trecho da parede leste sem móveis por perto
+  A.feedPoint(base);
+  const p = A.snapPoint({x: faceExterna + 20, y: base.y + 100}, base);
+  near(p.x, faceExterna, 1, 'x parou na face externa');
+  near(p.y, base.y, 1, 'y manteve a ortogonal');
+  A.tecla({key:'Escape'});
+});
+t('sem ponto base ainda não há ortogonal a respeitar', () => {
+  const w = paredeLeste(), faceInterna = 9000 - w.t/2;
+  A.startCmd('CX');                       // sem base, e CX nem usa orto
+  const p = A.snapPoint({x: faceInterna + 20, y: 5000}, null);
+  near(p.x, faceInterna, 1, 'ainda gruda na face');
+  A.tecla({key:'Escape'});
+});
+t('com Orto desligado volta a valer o ponto mais próximo da face', () => {
+  const w = paredeLeste(), faceInterna = 9000 - w.t/2;
+  A.CFG.ortho = false;
+  A.startCmd('L');
+  const base = {x: 3000, y: 5000};   // trecho da parede leste sem móveis por perto
+  A.feedPoint(base);
+  const p = A.snapPoint({x: faceInterna + 25, y: base.y + 900}, base);
+  near(p.x, faceInterna, 1, 'x na face');
+  if (Math.abs(p.y - base.y) < 100) throw new Error('travou na ortogonal com o Orto desligado');
+  A.CFG.ortho = true;
+  A.tecla({key:'Escape'});
+});
+t('extremidade continua vencendo o perpendicular', () => {
+  const w = paredeLeste();
+  A.startCmd('L');
+  const base = {x: 3000, y: w.ay};        // base alinhada com a ponta da parede
+  A.feedPoint(base);
+  const p = A.snapPoint({x: w.ax + 20, y: w.ay + 20}, base);
+  near(p.x, w.ax, 1, 'x do eixo/extremidade'); near(p.y, w.ay, 1, 'y da extremidade');
+  A.tecla({key:'Escape'});
+});
+
 t('com osnap desligado, sobra apenas a grade', () => {
   const w = paredeSul(), face = w.t/2;
   A.CFG.osnap = false;

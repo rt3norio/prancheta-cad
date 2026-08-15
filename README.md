@@ -131,6 +131,14 @@ Os quatro formatos, sempre na unidade de trabalho corrente:
 com `Shift` mais rápido · `Alt+arrastar` ou botão do meio também deslocam, a
 qualquer momento · roda do mouse para zoom no cursor.
 
+### Comandos transparentes
+
+Os que só ajustam um modo, uma medida padrão ou a vista — `ORTO`, `OSNAP`, `GRADE`,
+`RASTRO`, `COTA`, `CORTE`, `UN`, `ESP`, `ALT`, `PALT`, `JALT`, `PEIT`, `COR`, `Z` e
+`CONSOLE` — rodam **sem cancelar o desenho em andamento**. Perceber no meio de um
+traço que o Orto está atrapalhando e desligá-lo é justamente o caso de uso; o
+comando continua de onde parou, com os pontos já colocados.
+
 ## Console
 
 A barra de comandos fica **escondida por padrão** — o desenho ocupa a tela inteira.
@@ -154,7 +162,17 @@ paredes a prioridade se inverte de volta para o eixo, que é por onde a parede �
 traçada.
 
 Marcadores no cursor: quadrado para extremidade e canto, X para interseção,
-ampulheta para face, triângulo para meio.
+ampulheta para face, triângulo para meio, ⊥ para perpendicular.
+
+Com o **Orto ligado**, encostar numa face não quebra o alinhamento: o ponto de
+encaixe passa a ser onde a face cruza a ortogonal do ponto de onde você está
+desenhando. É assim que se leva uma parede reta até encostar noutra sem sair do
+esquadro. Pontos notáveis — extremidade, canto, meio, interseção — continuam tendo
+prioridade e vencem o Orto, como manda o costume do CAD.
+
+O Orto não se aplica à ferramenta **Móvel**: ali os dois cliques são cantos opostos
+de um retângulo, não uma direção, e travar em ortogonal zeraria a largura ou a
+profundidade.
 
 ### Rastreio (F11)
 
@@ -277,7 +295,7 @@ Algumas decisões que valem ser conhecidas por quem for mexer:
 node test.mjs prancheta.html
 ```
 
-131 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
+146 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
 contexto com o DOM stubado e um canvas instrumentado, e verifica a geometria de
 verdade — vãos vazados no 3D, matrizes de câmera, snap nas faces, hit-test de cada
 tipo de objeto, ida e volta pelo arquivo e o SVG exportado.

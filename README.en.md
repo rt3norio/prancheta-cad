@@ -138,6 +138,15 @@ The four formats, always in the current working unit:
 `Shift` · `Alt+drag` or middle button also pan, at any time · mouse wheel to zoom at
 the cursor.
 
+### Transparent commands
+
+The ones that only flip a mode, set a default measurement or move the view —
+`ORTO`, `OSNAP`, `GRADE`, `RASTRO`, `COTA`, `CORTE`, `UN`, `ESP`, `ALT`, `PALT`,
+`JALT`, `PEIT`, `COR`, `Z` and `CONSOLE` — run **without cancelling the command in
+progress**. Noticing mid-stroke that ortho is in the way and switching it off is
+exactly the use case; the command carries on from where it was, points already
+placed intact.
+
 ## Console
 
 The command bar is **hidden by default**, so the drawing gets the whole screen.
@@ -161,7 +170,17 @@ while you are drawing walls the priority flips back to the centreline, which is 
 walls are actually traced along.
 
 Cursor markers: square for endpoint and corner, X for intersection, hourglass for
-face, triangle for midpoint.
+face, triangle for midpoint, ⊥ for perpendicular.
+
+With **ortho on**, meeting a face no longer breaks the alignment: the snap point
+becomes where that face crosses the ortho line from the point you are drawing from.
+That is how you run a wall straight up to another one without leaving square.
+Notable points — endpoint, corner, midpoint, intersection — still take priority and
+beat ortho, as CAD convention expects.
+
+Ortho does not apply to the **furniture** tool: there the two clicks are opposite
+corners of a rectangle, not a direction, and locking to ortho would zero out the
+width or the depth.
 
 ### Tracking (F11)
 
@@ -285,7 +304,7 @@ Decisions worth knowing before touching the code:
 node test.mjs prancheta.html
 ```
 
-131 assertions, no dependencies: the harness extracts the `<script>` from the HTML,
+146 assertions, no dependencies: the harness extracts the `<script>` from the HTML,
 runs it in a context with a stubbed DOM and an instrumented canvas, and checks the
 real geometry — hollow openings in 3D, camera matrices, face snapping, hit-testing
 for every object type, a round trip through the file format, and the exported SVG.

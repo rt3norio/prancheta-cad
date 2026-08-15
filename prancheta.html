@@ -623,7 +623,7 @@ function guias(base){
     g.push({tipo:'rastro', eixo:'h', x:p.x, y:p.y});
     g.push({tipo:'rastro', eixo:'v', x:p.x, y:p.y});
   }
-  if(base && CFG.ortho){
+  if(base && CFG.ortho && !ortoDesligadoPorComando()){
     g.push({tipo:'orto', eixo:'h', x:base.x, y:base.y});
     g.push({tipo:'orto', eixo:'v', x:base.x, y:base.y});
   }
@@ -687,9 +687,13 @@ function dentroDeParede(p){
   return false;
 }
 
+/* alguns comandos pedem dois cantos livres, não uma direção */
+function ortoDesligadoPorComando(){ return !!(AC && AC.spec.semOrto); }
+
 function snapPoint(sw, base){
   snapInfo = null;
   const tol = 14 / view.z;
+  const orto = CFG.ortho && !ortoDesligadoPorComando();
   if(CFG.osnap){
     // desenhando parede, o eixo manda; em qualquer outro caso, a face
     const eixoManda = !!(AC && AC.spec.key === 'L');
@@ -718,8 +722,19 @@ function snapPoint(sw, base){
       const p = segInter(perto[i], perto[j]);
       if(p) consider(p, 'inter', eixoManda ? 1 : 0);
     }
-    // por último, o ponto mais próximo sobre a linha
     for(const L of perto){
+      // Com Orto ligado, o ponto útil sobre uma face não é o mais próximo do
+      // cursor — é onde ela cruza a ortogonal do ponto base. Sem isto o snap de
+      // face vence o Orto e o traço sai torto justamente ao encostar na parede.
+      if(orto && base){
+        const raio = 1e7;
+        for(const g of [{a:{x:base.x-raio, y:base.y}, b:{x:base.x+raio, y:base.y}},
+                        {a:{x:base.x, y:base.y-raio}, b:{x:base.x, y:base.y+raio}}]){
+          const ip = segInter({a:L.a, b:L.b}, g);
+          if(ip) consider(ip, 'perp', 3);
+        }
+      }
+      // por último, o ponto mais próximo sobre a linha
       const t = projOnSeg(sw, L.a, L.b);
       consider({x:L.a.x + (L.b.x-L.a.x)*t, y:L.a.y + (L.b.y-L.a.y)*t},
                L.tipo === 'face' ? 'face' : 'eixo', 4);
@@ -730,13 +745,13 @@ function snapPoint(sw, base){
   if(r){ snapInfo = 'rastro'; rastroAtivo = r.linhas; return r.p; }
   rastroAtivo = [];
   let p = {x:sw.x, y:sw.y};
-  if(CFG.ortho && base){
+  if(orto && base){
     if(Math.abs(p.x-base.x) > Math.abs(p.y-base.y)) p.y = base.y; else p.x = base.x;
     snapInfo = 'orto';
   }
   if(CFG.snapGrid){
     const g = CFG.grid;
-    if(!(CFG.ortho && base)){
+    if(!(orto && base)){
       p = {x:Math.round(p.x/g)*g, y:Math.round(p.y/g)*g};
     }else if(Math.abs(p.x-base.x) > Math.abs(p.y-base.y)){
       p.x = Math.round(p.x/g)*g;
@@ -803,6 +818,13 @@ function defc(names, spec){
   for(const n of names) CMDS[n.toUpperCase()] = spec;
 }
 function setPrompt(t){ pmt.textContent = t; atualizaDica(); }
+/* encerra um comando transparente: registra a mensagem, atualiza a interface
+   e deixa o comando de desenho em andamento exatamente onde estava */
+function fimT(msg, cls){
+  if(msg) log(msg, cls);
+  syncUI();
+  if(AC) setPrompt(pmt.textContent);   // reafirma o prompt do comando em curso
+}
 function endCmd(msg, cls){
   if(msg) log(msg, cls);
   if(AC && AC.spec.fim) AC.spec.fim(AC);
@@ -811,6 +833,14 @@ function endCmd(msg, cls){
 function startCmd(name, arg){
   const spec = CMDS[name.toUpperCase()];
   if(!spec){ log('Comando desconhecido: ' + name, 'err'); return; }
+  // Transparentes: ajustam um modo ou a vista e devolvem o controle ao comando
+  // que estava em andamento. Mexer no Orto no meio de um traço é justamente o
+  // caso de uso — cancelar o desenho ali seria o oposto do esperado.
+  if(spec.t){
+    log(name.toUpperCase() + (arg ? ' ' + arg : ''), 'cmd');
+    spec.start({spec, step:0, pts:[], data:{}}, arg);
+    return;
+  }
   // trocar de comando encerra o anterior: sem isto, a limpeza dele nunca roda
   if(AC && AC.spec.fim) AC.spec.fim(AC);
   lastCmd = spec.key;
@@ -1012,6 +1042,9 @@ defc(['INVS','SENTIDO'], invSpec('abre', 'o sentido'));
 
 /* --- MÓVEL: caixa por dois cantos --- */
 defc(['CX','CAIXA','MOVEL','MOB'], {
+  // os dois cliques são cantos opostos de um retângulo, não uma direção:
+  // travar em ortogonal zeraria a largura ou a profundidade
+  semOrto: true,
   start(c){ setPrompt('Móvel — primeiro canto:'); },
   point(c,p){
     if(!c.pts.length){ c.pts.push(p); setPrompt('Canto oposto:'); return; }
@@ -1050,14 +1083,14 @@ defc(['CX','CAIXA','MOVEL','MOB'], {
     ctx.restore();
   }
 });
-defc(['COR'], {start(c,a){
+defc(['COR'], {t:true, start(c,a){
   const i = parseInt(a, 10);
   if(i >= 1 && i <= PALETA.length){
     CFG.boxColor = PALETA[i-1].c;
     if(selBox){ const b = M.boxes.find(v => v.id === selBox); if(b){ snapshot(); b.color = CFG.boxColor; dirty3d = true; persist(); } }
-    endCmd('  cor = ' + PALETA[i-1].n);
+    fimT('  cor = ' + PALETA[i-1].n);
   }else{
-    endCmd('  uso: COR 1..' + PALETA.length + ' — ' + PALETA.map((p,k) => (k+1) + ' ' + p.n).join(', '), 'err');
+    fimT('  uso: COR 1..' + PALETA.length + ' — ' + PALETA.map((p,k) => (k+1) + ' ' + p.n).join(', '), 'err');
   }
 }});
 
@@ -1107,7 +1140,7 @@ defc(['DI','DIST'], {
 });
 
 /* --- comandos imediatos --- */
-defc(['Z','ZOOM'],  {start(){ zoomExtents(); endCmd('  zoom estendido'); }});
+defc(['Z','ZOOM'],  {t:true, start(){ zoomExtents(); fimT('  zoom estendido'); }});
 
 /* Pan como ferramenta: fica ativa até Esc, e o arrasto com o botão esquerdo
    desloca a vista. Alt+arrastar e o botão do meio seguem valendo sempre. */
@@ -1118,34 +1151,33 @@ defc(['P','PAN','DESLOCAR'], {
 defc(['U','DESFAZER'], {start(){ restore(undoStack, redoStack) ? endCmd('  desfeito') : endCmd('  nada a desfazer'); }});
 defc(['RE','REFAZER'], {start(){ restore(redoStack, undoStack) ? endCmd('  refeito') : endCmd('  nada a refazer'); }});
 defc(['3D'], {start(){ setMode(mode === '3d' ? '2d' : '3d'); endCmd('  vista ' + mode.toUpperCase()); }});
-defc(['CORTE'], {start(c,a){
+defc(['CORTE'], {t:true, start(c,a){
   if(a !== undefined && a !== ''){
     const v = parseFloat(String(a).replace(',','.'));
-    if(!isFinite(v) || v < 0){ endCmd('  uso: CORTE <altura> ou CORTE para ligar/desligar', 'err'); return; }
+    if(!isFinite(v) || v < 0){ fimT('  uso: CORTE <altura> ou CORTE para ligar/desligar', 'err'); return; }
     CFG.corte3d = U.toMM(v);
   }else{
     CFG.corte3d = CFG.corte3d > 0 ? 0 : 1200;
   }
-  dirty3d = true; syncUI();
-  endCmd(CFG.corte3d > 0 ? '  corte das paredes em ' + U.fmt(CFG.corte3d) + ' ' + CFG.unit
-                         : '  corte desligado: paredes inteiras');
+  dirty3d = true;
+  fimT(CFG.corte3d > 0 ? '  corte das paredes em ' + U.fmt(CFG.corte3d) + ' ' + CFG.unit
+                       : '  corte desligado: paredes inteiras');
 }});
-defc(['ESP'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); endCmd('  espessura = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ESP <valor>', 'err'); }});
-defc(['ALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); endCmd('  pé-direito = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ALT <valor>', 'err'); }});
-defc(['PALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); endCmd('  altura de porta = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PALT <valor>', 'err'); }});
-defc(['JALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.winH = U.toMM(v); endCmd('  altura de janela = ' + v + ' ' + CFG.unit); } else endCmd('  uso: JALT <valor>', 'err'); }});
-defc(['PEIT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>=0){ CFG.winSill = U.toMM(v); endCmd('  peitoril = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PEIT <valor>', 'err'); }});
-defc(['GRADE','GRID'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.grid = U.toMM(v); endCmd('  grade = ' + v + ' ' + CFG.unit); } else { CFG.snapGrid = !CFG.snapGrid; syncUI(); endCmd('  snap grade ' + (CFG.snapGrid?'ON':'OFF')); } }});
-defc(['ORTO','F8'], {start(){ CFG.ortho = !CFG.ortho; syncUI(); endCmd('  orto ' + (CFG.ortho?'ON':'OFF')); }});
-defc(['OSNAP','F3'], {start(){ CFG.osnap = !CFG.osnap; syncUI(); endCmd('  osnap ' + (CFG.osnap?'ON':'OFF')); }});
-defc(['RASTRO','OTRACK','F11'], {start(){
+defc(['ESP'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); fimT('  espessura = ' + v + ' ' + CFG.unit); } else fimT('  uso: ESP <valor>', 'err'); }});
+defc(['ALT'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); fimT('  pé-direito = ' + v + ' ' + CFG.unit); } else fimT('  uso: ALT <valor>', 'err'); }});
+defc(['PALT'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); fimT('  altura de porta = ' + v + ' ' + CFG.unit); } else fimT('  uso: PALT <valor>', 'err'); }});
+defc(['JALT'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.winH = U.toMM(v); fimT('  altura de janela = ' + v + ' ' + CFG.unit); } else fimT('  uso: JALT <valor>', 'err'); }});
+defc(['PEIT'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>=0){ CFG.winSill = U.toMM(v); fimT('  peitoril = ' + v + ' ' + CFG.unit); } else fimT('  uso: PEIT <valor>', 'err'); }});
+defc(['GRADE','GRID'], {t:true, start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.grid = U.toMM(v); fimT('  grade = ' + v + ' ' + CFG.unit); } else { CFG.snapGrid = !CFG.snapGrid; fimT('  snap grade ' + (CFG.snapGrid?'ON':'OFF')); } }});
+defc(['ORTO','F8'], {t:true, start(){ CFG.ortho = !CFG.ortho; fimT('  orto ' + (CFG.ortho?'ON':'OFF')); }});
+defc(['OSNAP','F3'], {t:true, start(){ CFG.osnap = !CFG.osnap; fimT('  osnap ' + (CFG.osnap?'ON':'OFF')); }});
+defc(['RASTRO','OTRACK','F11'], {t:true, start(){
   CFG.track = !CFG.track;
   if(!CFG.track) limpaRastro();
-  syncUI();
-  endCmd('  rastreio ' + (CFG.track?'ON':'OFF'));
+  fimT('  rastreio ' + (CFG.track?'ON':'OFF'));
 }});
-defc(['COTA','COTAS'], {start(){ CFG.autoDim = !CFG.autoDim; syncUI(); endCmd('  cotas automáticas ' + (CFG.autoDim?'ON':'OFF')); }});
-defc(['UN','UNID'], {start(c,a){ const u = (a||'').toLowerCase(); if(UNITS[u]){ setUnit(u); endCmd('  unidade = ' + u); } else endCmd('  uso: UN mm | cm | m', 'err'); }});
+defc(['COTA','COTAS'], {t:true, start(){ CFG.autoDim = !CFG.autoDim; fimT('  cotas automáticas ' + (CFG.autoDim?'ON':'OFF')); }});
+defc(['UN','UNID'], {t:true, start(c,a){ const u = (a||'').toLowerCase(); if(UNITS[u]){ setUnit(u); fimT('  unidade = ' + u); } else fimT('  uso: UN mm | cm | m', 'err'); }});
 defc(['NOVO','NEW'], {start(){ if(M.walls.length || M.boxes.length) snapshot(); M.walls=[]; M.ops=[]; M.dims=[]; M.boxes=[]; sel.clear(); selOp=null; selBox=null; selDim=null; dirty3d=true; persist(); endCmd('  desenho novo'); }});
 defc(['SALVAR','SAVE'], {start(){ salvarJSON(); endCmd(); }});
 defc(['ABRIR','OPEN'], {start(){ abrirJSON(); endCmd(); }});
@@ -1153,7 +1185,7 @@ defc(['SVG'], {start(){ salvarSVG(); endCmd(); }});
 defc(['JSON'], {start(){ dlgSave(); endCmd(); }});
 defc(['COLAR'], {start(){ dlgOpen(); endCmd(); }});
 defc(['AJUDA','?','HELP'], {start(){ dlgHelp(); endCmd(); }});
-defc(['CONSOLE','F2'], {start(){ const v = !consoleAberto; endCmd(); setConsole(v); }});
+defc(['CONSOLE','F2'], {t:true, start(){ setConsole(!consoleAberto); }});
 defc(['EXEMPLO','DEMO'], {start(){ snapshot(); demo(); zoomExtents(); endCmd('  exemplo carregado'); }});
 
 /* ---------------- seleção ---------------- */
@@ -1735,6 +1767,11 @@ function drawCursor(){
     }else if(snapInfo === 'face'){
       ctx.moveTo(S.x-8,S.y-6); ctx.lineTo(S.x+8,S.y-6);
       ctx.lineTo(S.x-8,S.y+6); ctx.lineTo(S.x+8,S.y+6); ctx.stroke();
+    }else if(snapInfo === 'perp'){
+      ctx.moveTo(S.x-8,S.y+7); ctx.lineTo(S.x+8,S.y+7);   // símbolo de perpendicular
+      ctx.moveTo(S.x,S.y+7); ctx.lineTo(S.x,S.y-8);
+      ctx.moveTo(S.x,S.y+2); ctx.lineTo(S.x+5,S.y+2);
+      ctx.lineTo(S.x+5,S.y+7); ctx.stroke();
     }else if(snapInfo === 'rastro'){
       ctx.strokeStyle = css('--amber');
       ctx.moveTo(S.x-8,S.y); ctx.lineTo(S.x+8,S.y);
