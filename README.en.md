@@ -10,6 +10,13 @@ One HTML file. No server, no build step, no dependencies, no install.
 **▶ [Open the editor](https://rt3norio.github.io/prancheta-cad/)** — it loads with a
 sample plan you can start editing right away.
 
+![Floor plan at real-world scale, with automatic per-wall and overall dimensions, doors with swing arcs, windows and coloured furniture](docs/planta.png)
+
+The same plan in the 3D view, walls cut at 120 cm so the interior is visible. The
+220 cm wardrobe rises past the cut, and the wall cabinet sits at its mounting height:
+
+![3D view of the extruded walls with hollow openings and furniture in their own colours](docs/vista-3d.jpg)
+
 > The interface and commands are in Brazilian Portuguese. This page explains
 > everything an English-speaking user needs in order to use it; a short glossary at
 > the end maps every on-screen term.

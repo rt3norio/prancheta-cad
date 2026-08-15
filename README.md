@@ -10,6 +10,14 @@ Um único arquivo HTML. Sem servidor, sem build, sem dependências, sem instala�
 **▶ [Abrir o editor](https://rt3norio.github.io/prancheta-cad/)** — carrega com uma
 planta de exemplo pronta para você mexer.
 
+![Planta baixa em escala real, com cotas automáticas por parede e do contorno, portas com arco de abertura, janelas e móveis coloridos](docs/planta.png)
+
+A mesma planta na vista 3D, com as paredes cortadas a 120 cm para enxergar o
+interior. O armário de 220 cm ultrapassa o corte e o armário aéreo aparece na sua
+altura de instalação:
+
+![Vista 3D das paredes extrudadas com os vãos vazados e os móveis em suas cores](docs/vista-3d.jpg)
+
 ---
 
 ## Por que existe
