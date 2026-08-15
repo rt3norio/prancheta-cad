@@ -51,11 +51,16 @@ const doc = {
   addEventListener(){}, execCommand(){ return true; }
 };
 doc.body = mkEl('body');
+const TIMERS = new Map();
+let TIMER_ID = 0;
+const dispararTimers = () => { const fns = [...TIMERS.values()]; TIMERS.clear(); fns.forEach(f => f()); };
 const sandbox = {
   document: doc,
   window: { addEventListener(){}, devicePixelRatio: 1 },
   innerWidth: 1280, innerHeight: 800,
-  setTimeout(){ return 0; }, clearTimeout(){},
+  // ids crescentes e disparo manual: setTimeout real nunca devolve 0
+  setTimeout(fn){ TIMERS.set(++TIMER_ID, fn); return TIMER_ID; },
+  clearTimeout(id){ TIMERS.delete(id); },
   Blob, FileReader: class {}, Promise,
   URL: { createObjectURL: () => 'blob:teste', revokeObjectURL(){} },
   getComputedStyle(){ return { getPropertyValue(v){ return TOKENS[v] || '#808080'; } }; },
@@ -77,12 +82,18 @@ globalThis.__api = { get M(){ return M; }, CFG, view, cam, U, quads: () => quads
   pickDim, dimLine, autoDims, pickAutoDim,
   PALETA, boxCorners, doorLeaf, drawBoxes, shadePair, quadHex, darken,
   snapPoint, snapLines, segInter, dentroDeParede, carregarDoc, nomeBase, escreverArquivo,
+  setConsole, atualizaDica, consoleAberto: () => consoleAberto,
+  consideraAquisicao, limpaRastro, adquirir, aplicaRastro, track: () => track, tecla,
   gl: () => gl, isDirty3d: () => dirty3d };
 `;
 
 vm.createContext(sandbox);
 vm.runInContext(src, sandbox, {filename: 'prancheta.js'});
 const A = sandbox.__api;
+
+/* parede sul da planta de exemplo: de (0,0) a (9000,0), espessura 150 */
+const paredeSul = () => A.M.walls.find(w =>
+  Math.abs(w.ay) < 1 && Math.abs(w.by) < 1 && Math.abs(w.bx - 9000) < 1);
 
 /* ---- asserções ---- */
 let pass = 0, fail = 0;
@@ -417,6 +428,65 @@ t('cotas automáticas ficam fora da parede que medem', () => {
       throw new Error('a cota da parede#' + d.wall.id + ' foi parar dentro da alvenaria');
   }
 });
+t('NENHUMA cota automática cai sobre o desenho', () => {
+  const bb = A.bbox();
+  for (const d of A.autoDims()) {
+    const l = A.dimLine(d);
+    for (let i = 0; i <= 10; i++) {
+      const p = {x: l.a.x + (l.b.x-l.a.x)*i/10, y: l.a.y + (l.b.y-l.a.y)*i/10};
+      if (p.x > bb.x0 + 1 && p.x < bb.x1 - 1 && p.y > bb.y0 + 1 && p.y < bb.y1 - 1)
+        throw new Error('a cota de ' + (d.geral || 'parede#' + d.wall.id) +
+          ' passa por dentro da planta, em (' + (p.x/10).toFixed(0) + ',' + (p.y/10).toFixed(0) + ')cm');
+    }
+  }
+});
+t('nenhuma cota automática cruza um móvel', () => {
+  for (const d of A.autoDims()) {
+    const l = A.dimLine(d);
+    for (const b of A.M.boxes) {
+      const c = Math.cos(b.rot || 0), s = Math.sin(b.rot || 0);
+      for (let i = 0; i <= 24; i++) {
+        const p = {x: l.a.x + (l.b.x-l.a.x)*i/24, y: l.a.y + (l.b.y-l.a.y)*i/24};
+        const dx = p.x - b.x, dy = p.y - b.y;
+        if (Math.abs(dx*c + dy*s) < b.w/2 && Math.abs(-dx*s + dy*c) < b.d/2)
+          throw new Error('cota de ' + (d.geral || 'parede#' + d.wall.id) + ' cruza "' + (b.nome || b.id) + '"');
+      }
+    }
+  }
+});
+t('cotas empurradas para o mesmo lado não se sobrepõem', () => {
+  const porLado = new Map();
+  for (const d of A.autoDims()) {
+    if (!d.wall) continue;
+    const l = A.dimLine(d);
+    const horizontal = Math.abs(l.b.y - l.a.y) < Math.abs(l.b.x - l.a.x);
+    const chave = horizontal ? 'h' : 'v';
+    const faixa = horizontal ? l.a.y : l.a.x;
+    if (!porLado.has(chave)) porLado.set(chave, []);
+    porLado.get(chave).push({faixa, id: d.wall.id});
+  }
+  for (const [eixo, arr] of porLado) {
+    arr.sort((a, b) => a.faixa - b.faixa);
+    for (let i = 1; i < arr.length; i++) {
+      const gap = arr[i].faixa - arr[i-1].faixa;
+      if (gap > 1 && gap < 200)
+        throw new Error('eixo ' + eixo + ': cotas das paredes #' + arr[i-1].id + ' e #' + arr[i].id +
+          ' a apenas ' + gap.toFixed(0) + 'mm uma da outra — o texto colide');
+    }
+  }
+});
+t('a cota geral fica além de todas as outras', () => {
+  const dims = A.autoDims();
+  const geralLargura = dims.find(d => d.geral === 'largura');
+  const lg = A.dimLine(geralLargura);
+  for (const d of dims) {
+    if (d.geral) continue;
+    const l = A.dimLine(d);
+    const horizontal = Math.abs(l.b.y - l.a.y) < Math.abs(l.b.x - l.a.x);
+    if (horizontal && l.a.y < 0 && l.a.y < lg.a.y)
+      throw new Error('a cota da parede#' + d.wall.id + ' ficou mais longe que a cota geral');
+  }
+});
 t('as cotas gerais do contorno ficam FORA do desenho, nos dois eixos', () => {
   const bb = A.bbox();
   const gerais = A.autoDims().filter(d => d.geral);
@@ -580,6 +650,301 @@ t('SVG inclui os móveis com a cor e continua bem formado', () => {
   const close = (s.match(/<\//g) || []).length + (s.match(/\/>/g) || []).length;
   eq(open, close, 'tags abertas vs fechadas');
 });
+console.log('\nPAN');
+t('a ferramenta Pan existe e é reconhecida por P, PAN e DESLOCAR', () => {
+  for (const k of ['P', 'PAN', 'DESLOCAR'])
+    if (!A.CMDS[k]) throw new Error('falta o alias ' + k);
+  eq(A.CMDS.P.key, 'P', 'chave da ferramenta');
+});
+t('Pan fica ativa até ser encerrada, sem consumir cliques', () => {
+  A.startCmd('P');
+  const ac = A.getAC();
+  if (!ac) throw new Error('a ferramenta não permaneceu ativa');
+  eq(ac.spec.key, 'P', 'ferramenta ativa');
+  if (ac.spec.point) throw new Error('Pan não deveria consumir pontos do desenho');
+  A.startCmd('Z');
+});
+t('encerrar o Pan devolve o cursor ao normal', () => {
+  A.startCmd('P');
+  if (!els['cv'].classList.contains('pan')) throw new Error('cursor de pan não foi aplicado');
+  A.startCmd('Z');                                  // outro comando encerra o anterior
+  if (els['cv'].classList.contains('pan')) throw new Error('cursor de pan ficou preso');
+});
+t('as setas deslocam a vista e o Shift acelera', () => {
+  const x0 = A.view.x, y0 = A.view.y;
+  A.tecla({key:'ArrowRight'});
+  const d1 = A.view.x - x0;
+  if (d1 <= 0) throw new Error('seta direita não deslocou');
+  A.view.x = x0;
+  A.tecla({key:'ArrowRight', shiftKey:true});
+  const d2 = A.view.x - x0;
+  if (d2 <= d1) throw new Error('Shift deveria deslocar mais');
+  A.view.x = x0;
+  A.tecla({key:'ArrowUp'});
+  if (A.view.y <= y0) throw new Error('seta para cima não deslocou');
+  A.view.y = y0;
+});
+t('as setas não deslocam enquanto há texto digitado', () => {
+  const x0 = A.view.x;
+  els['cin'].value = '300';
+  A.tecla({key:'ArrowRight'});
+  els['cin'].value = '';
+  near(A.view.x, x0, .001, 'a vista não deveria ter mexido');
+});
+
+console.log('\nRASTREIO A PARTIR DE PONTOS ADQUIRIDOS');
+const canto = () => { const w = paredeSul(); return {x: w.bx, y: w.by}; };
+t('mirar um ponto notável e esperar adquire o ponto', () => {
+  A.limpaRastro();
+  A.CFG.track = true;
+  A.startCmd('L');
+  A.snapPoint({x: canto().x + 20, y: canto().y + 20}, null);   // osnap pega a extremidade
+  A.consideraAquisicao({x: canto().x, y: canto().y}, 'ext');
+  dispararTimers();
+  eq(A.track().length, 1, 'pontos adquiridos');
+  A.startCmd('Z');
+});
+t('só pontos notáveis são adquiridos — grade e face não', () => {
+  A.limpaRastro();
+  for (const tipo of ['grade', 'orto', 'face', 'eixo', null]) {
+    A.consideraAquisicao({x: 1000, y: 1000}, tipo);
+    dispararTimers();
+  }
+  eq(A.track().length, 0, 'nada deveria ter sido adquirido');
+});
+/* pontos bem longe da planta, para isolar o rastreio: o osnap tem prioridade
+   sobre ele, então testar em cima de uma parede mediria a outra coisa */
+const LIVRE = {x: 14000, y: 9000};
+t('afastar o cursor na horizontal trava na guia do ponto adquirido', () => {
+  A.limpaRastro(); A.CFG.track = true;
+  A.consideraAquisicao(LIVRE, 'ext'); dispararTimers();
+  A.startCmd('CX');
+  const p = A.snapPoint({x: LIVRE.x - 5000, y: LIVRE.y + 30}, null);
+  near(p.y, LIVRE.y, 1, 'travou no Y do ponto adquirido');
+  near(p.x, LIVRE.x - 5000, 1, 'o X seguiu livre');
+  A.startCmd('Z');
+});
+t('afastar na vertical trava no X do ponto adquirido', () => {
+  A.limpaRastro();
+  A.consideraAquisicao(LIVRE, 'ext'); dispararTimers();
+  A.startCmd('CX');
+  const p = A.snapPoint({x: LIVRE.x + 30, y: LIVRE.y - 5000}, null);
+  near(p.x, LIVRE.x, 1, 'travou no X do ponto adquirido');
+  near(p.y, LIVRE.y - 5000, 1, 'o Y seguiu livre');
+  A.startCmd('Z');
+});
+t('longe de qualquer guia o rastreio não interfere', () => {
+  A.limpaRastro();
+  A.consideraAquisicao(LIVRE, 'ext'); dispararTimers();
+  A.startCmd('CX');
+  const p = A.snapPoint({x: LIVRE.x - 5000, y: LIVRE.y - 5000}, null);
+  if (Math.abs(p.y - LIVRE.y) < 1 || Math.abs(p.x - LIVRE.x) < 1)
+    throw new Error('travou numa guia estando longe dela');
+  A.startCmd('Z');
+});
+t('duas guias cruzadas dão o ponto de interseção', () => {
+  A.limpaRastro();
+  const a = {x: 14000, y: 9000}, b = {x: 18000, y: 13000};
+  A.consideraAquisicao(a, 'ext'); dispararTimers();
+  A.consideraAquisicao(b, 'ext'); dispararTimers();
+  eq(A.track().length, 2, 'dois pontos adquiridos');
+  A.startCmd('CX');
+  const p = A.snapPoint({x: b.x + 25, y: a.y + 25}, null);
+  near(p.x, b.x, 1, 'X vem de um ponto'); near(p.y, a.y, 1, 'Y vem do outro');
+  A.startCmd('Z');
+});
+t('o osnap tem prioridade sobre a guia de rastreio', () => {
+  A.limpaRastro();
+  const w = paredeSul(), face = w.t/2;
+  A.consideraAquisicao({x: 5000, y: 4000}, 'ext'); dispararTimers();   // guia horizontal em y=4000
+  A.startCmd('CX');
+  // cursor junto da face da parede sul: o osnap deve vencer, não a guia
+  const p = A.snapPoint({x: 5000, y: face + 20}, null);
+  near(p.y, face, 1, 'a face da parede venceu a guia');
+  A.startCmd('Z');
+});
+t('mirar de novo o mesmo ponto solta a aquisição', () => {
+  A.limpaRastro();
+  const c = canto();
+  A.consideraAquisicao(c, 'ext'); dispararTimers();
+  eq(A.track().length, 1, 'adquirido');
+  A.consideraAquisicao({x: 5000, y: 5000}, 'ext'); dispararTimers();   // sai e volta
+  A.consideraAquisicao(c, 'ext'); dispararTimers();
+  if (A.track().some(p => Math.hypot(p.x-c.x, p.y-c.y) < 1))
+    throw new Error('mirar de novo deveria ter soltado o ponto');
+});
+t('no máximo dois pontos ficam adquiridos', () => {
+  A.limpaRastro();
+  for (const x of [1000, 2000, 3000, 4000]) {
+    A.consideraAquisicao({x, y: 7000}, 'ext'); dispararTimers();
+  }
+  eq(A.track().length, 2, 'os mais antigos saem');
+});
+t('desligar o rastreio limpa os pontos e para de interferir', () => {
+  A.limpaRastro();
+  const c = canto();
+  A.consideraAquisicao(c, 'ext'); dispararTimers();
+  A.startCmd('RASTRO');
+  eq(A.CFG.track, false, 'desligado');
+  eq(A.track().length, 0, 'pontos limpos');
+  A.startCmd('CX');
+  const p = A.snapPoint({x: c.x - 4000, y: c.y + 30}, null);
+  if (Math.abs(p.y - c.y) < 1) throw new Error('ainda travando com o rastreio desligado');
+  A.startCmd('RASTRO'); A.startCmd('Z');
+});
+t('terminar um comando limpa os pontos adquiridos', () => {
+  A.limpaRastro();
+  A.consideraAquisicao(canto(), 'ext'); dispararTimers();
+  A.startCmd('Z');                                    // comando imediato: chama endCmd
+  eq(A.track().length, 0, 'rastreio limpo ao encerrar o comando');
+});
+
+console.log('\nPORTA: INVERTER ABERTURA');
+const umaPorta = () => A.M.ops.find(o => o.kind === 'porta');
+t('porta nasce com dobradiça e sentido padrão', () => {
+  const o = umaPorta();
+  const l = A.doorLeaf(A.M.walls.find(w => w.id === o.w), o);
+  eq(l.dob, 1, 'dobradiça'); eq(l.abre, 1, 'sentido');
+});
+t('inverter a dobradiça move a folha para a outra ponta do vão', () => {
+  const o = umaPorta(), w = A.M.walls.find(v => v.id === o.w);
+  const antes = A.doorLeaf(w, o).h;
+  o.dob = -1;
+  const depois = A.doorLeaf(w, o).h;
+  near(Math.hypot(depois.x-antes.x, depois.y-antes.y), o.wid, 1, 'a dobradiça andou a largura do vão');
+  o.dob = 1;
+});
+t('inverter o sentido joga a folha para a outra face da parede', () => {
+  const o = umaPorta(), w = A.M.walls.find(v => v.id === o.w);
+  const l1 = A.doorLeaf(w, o);
+  const v1 = {x: l1.end.x - l1.h.x, y: l1.end.y - l1.h.y};
+  o.abre = -1;
+  const l2 = A.doorLeaf(w, o);
+  const v2 = {x: l2.end.x - l2.h.x, y: l2.end.y - l2.h.y};
+  near(v1.x + v2.x, 0, 1, 'x oposto'); near(v1.y + v2.y, 0, 1, 'y oposto');
+  o.abre = 1;
+});
+t('a folha continua com o comprimento do vão nas quatro combinações', () => {
+  const o = umaPorta(), w = A.M.walls.find(v => v.id === o.w);
+  for (const dob of [1, -1]) for (const abre of [1, -1]) {
+    o.dob = dob; o.abre = abre;
+    const l = A.doorLeaf(w, o);
+    near(Math.hypot(l.end.x-l.h.x, l.end.y-l.h.y), o.wid, 1, 'dob=' + dob + ' abre=' + abre);
+    // a dobradiça tem de cair numa das pontas do vão
+    const dH = (l.h.x-w.ax)*l.u.x + (l.h.y-w.ay)*l.u.y;
+    if (Math.abs(Math.abs(dH - o.d) - o.wid/2) > 1)
+      throw new Error('dobradiça fora da ponta do vão em dob=' + dob);
+  }
+  o.dob = 1; o.abre = 1;
+});
+t('o hit-test acompanha as quatro combinações', () => {
+  const o = umaPorta(), w = A.M.walls.find(v => v.id === o.w);
+  for (const dob of [1, -1]) for (const abre of [1, -1]) {
+    o.dob = dob; o.abre = abre;
+    const l = A.doorLeaf(w, o);
+    const meioFolha = {x:(l.h.x+l.end.x)/2, y:(l.h.y+l.end.y)/2};
+    const hit = A.pickOpening(meioFolha);
+    if (!hit || hit.id !== o.id)
+      throw new Error('folha não clicável com dob=' + dob + ' abre=' + abre);
+    const arco = {x: l.h.x + (l.u.x*dob + l.n.x*abre)*o.wid*0.7071,
+                  y: l.h.y + (l.u.y*dob + l.n.y*abre)*o.wid*0.7071};
+    const hitArco = A.pickOpening(arco);
+    if (!hitArco || hitArco.id !== o.id)
+      throw new Error('arco não clicável com dob=' + dob + ' abre=' + abre);
+  }
+  o.dob = 1; o.abre = 1;
+});
+t('INV e INVS alternam a porta selecionada', () => {
+  const o = umaPorta();
+  A.setSelOp(o.id);
+  A.startCmd('INV');  eq(o.dob, -1, 'dobradiça após INV');
+  A.startCmd('INV');  eq(o.dob, 1,  'dobradiça de volta');
+  A.startCmd('INVS'); eq(o.abre, -1, 'sentido após INVS');
+  A.startCmd('INVS'); eq(o.abre, 1,  'sentido de volta');
+  A.setSelOp(null);
+});
+t('inverter janela pelo comando é recusado', () => {
+  const j = A.M.ops.find(o => o.kind === 'janela');
+  A.setSelOp(j.id);
+  A.startCmd('INV');
+  if (j.dob === -1) throw new Error('janela não deveria ter dobradiça');
+  A.setSelOp(null); A.startCmd('Z');
+});
+t('as inversões sobrevivem ao salvar e reabrir', () => {
+  const o = umaPorta();
+  o.dob = -1; o.abre = -1;
+  const doc = JSON.stringify(A.M);
+  A.carregarDoc(doc);
+  const r = A.M.ops.find(v => v.id === o.id);
+  eq(r.dob, -1, 'dobradiça'); eq(r.abre, -1, 'sentido');
+  r.dob = 1; r.abre = 1;
+});
+
+console.log('\nCONSOLE OPCIONAL');
+t('nasce fechado', () => {
+  A.setConsole(false);
+  eq(A.consoleAberto(), false, 'estado inicial');
+});
+t('o console fechado NÃO usa display:none — o input tem de seguir focável', () => {
+  const html = fs.readFileSync(process.argv[2], 'utf8');
+  const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+  const regra = css.match(/\.console\.oculto\s*\{([^}]*)\}/);
+  if (!regra) throw new Error('falta a regra .console.oculto');
+  if (/display\s*:\s*none/.test(regra[1]))
+    throw new Error('display:none mataria F8/F3/Esc/Delete/Ctrl+Z e a entrada de coordenadas');
+  if (!/overflow\s*:\s*hidden/.test(regra[1])) throw new Error('sem overflow:hidden o conteúdo vaza');
+});
+t('alternar o console redimensiona o canvas', () => {
+  let chamadas = 0;
+  const orig = els['cv'].getBoundingClientRect;
+  els['cv'].getBoundingClientRect = () => { chamadas++; return {width:1280, height:720, left:0, top:0}; };
+  A.setConsole(true); A.setConsole(false);
+  els['cv'].getBoundingClientRect = orig;
+  if (chamadas < 2) throw new Error('resize() não foi chamado ao abrir e fechar');
+});
+t('com o console fechado, o prompt do comando vai para o indicador', () => {
+  A.setConsole(false);
+  A.startCmd('L');
+  const el = els['dica'];
+  if (!el.classList.contains('on')) throw new Error('indicador não apareceu com comando ativo');
+  if (!/ponto/i.test(el.textContent)) throw new Error('indicador não mostra o prompt: ' + el.textContent);
+  A.startCmd('Z');
+});
+t('o aviso do resultado sobrevive ao fim do comando e depois some sozinho', () => {
+  A.setConsole(false);
+  A.startCmd('Z');                       // comando imediato: loga o resultado e encerra
+  const el = els['dica'];
+  if (!el.classList.contains('on'))
+    throw new Error('o aviso sumiu no mesmo instante em que endCmd repôs o prompt');
+  dispararTimers();                      // passa o tempo do aviso temporário
+  if (el.classList.contains('on')) throw new Error('indicador ficou preso na tela');
+});
+t('com o console aberto o indicador não aparece', () => {
+  A.setConsole(true);
+  A.startCmd('L');
+  if (els['dica'].classList.contains('on')) throw new Error('indicador duplicando o console');
+  A.startCmd('Z');
+  A.setConsole(false);
+});
+t('erro fechado vira aviso vermelho no indicador', () => {
+  A.setConsole(false);
+  A.startCmd('ESP', 'abc');              // valor inválido
+  const el = els['dica'];
+  if (!el.classList.contains('on')) throw new Error('erro não chegou ao indicador');
+  if (!el.classList.contains('erro')) throw new Error('erro sem a marcação vermelha');
+});
+t('a preferência do console é guardada', () => {
+  A.setConsole(true);
+  eq(sandbox.localStorage.getItem('prancheta.console'), '1', 'aberto');
+  A.setConsole(false);
+  eq(sandbox.localStorage.getItem('prancheta.console'), '0', 'fechado');
+});
+t('o comando CONSOLE alterna o estado', () => {
+  A.setConsole(false);
+  A.startCmd('CONSOLE'); eq(A.consoleAberto(), true, 'abriu');
+  A.startCmd('CONSOLE'); eq(A.consoleAberto(), false, 'fechou');
+});
+
 console.log('\nARQUIVO: SALVAR E ABRIR');
 t('carregarDoc restaura um desenho completo a partir do texto', () => {
   const original = JSON.stringify(A.M);
@@ -669,9 +1034,6 @@ await ta('sem seletor, cai para o download por âncora', async () => {
 });
 
 console.log('\nSNAP: FACE DA PAREDE, NÃO O EIXO');
-/* parede sul da planta: de (0,0) a (9000,0), espessura 150 → faces em y = ±75 */
-const paredeSul = () => A.M.walls.find(w =>
-  Math.abs(w.ay) < 1 && Math.abs(w.by) < 1 && Math.abs(w.bx - 9000) < 1);
 t('a planta tem a parede de referência', () => { if (!paredeSul()) throw new Error('parede sul não encontrada'); });
 t('desenhando um móvel, o cursor gruda na face — não no eixo', () => {
   const w = paredeSul(), face = w.t/2;

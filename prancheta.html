@@ -144,6 +144,9 @@
 
   /* ---- amostras de cor dos móveis ---- */
   .swrow{display:flex;flex-direction:column;gap:6px}
+  .dupla{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .dupla button{border:1px solid var(--edge);font-size:10.5px;padding:5px 4px}
+  .dupla button:hover{border-color:var(--accent);color:var(--ink)}
   .swlabel{font-size:11.5px;color:var(--ink-2)}
   .sw{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
   .chip{
@@ -152,6 +155,21 @@
   }
   .chip:hover{transform:translateY(-1px)}
   .chip.on{outline:2px solid var(--accent);outline-offset:1px}
+
+  /* ---- indicador flutuante: substitui o console quando ele está fechado ---- */
+  .dica{
+    position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    z-index:3;pointer-events:none;max-width:76%;
+    background:var(--ink);color:var(--sheet);
+    padding:7px 13px;border-radius:3px;
+    font-family:var(--f-disp);font-size:13px;letter-spacing:.03em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    opacity:0;transition:opacity .12s ease;
+    box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 28%,transparent);
+  }
+  .dica.on{opacity:1}
+  .dica.erro{background:var(--danger)}
+  @media (prefers-reduced-motion:reduce){.dica{transition:none}}
 
   /* ---- tooltip ---- */
   .tip{
@@ -165,7 +183,8 @@
   @media (prefers-reduced-motion:reduce){.tip{transition:none}}
   #cv3{display:none;z-index:0}
   #cv{z-index:1;background:transparent;cursor:none}
-  #cv.orbit{cursor:grab}
+  #cv.orbit,#cv.pan{cursor:grab}
+  #cv.arrastando{cursor:grabbing}
   .readout{
     position:absolute;right:10px;top:10px;pointer-events:none;z-index:2;
     display:flex;flex-direction:column;align-items:flex-end;gap:2px;
@@ -181,6 +200,9 @@
     flex:0 0 auto;background:var(--rail);border-top:1px solid var(--edge);
     display:flex;flex-direction:column;
   }
+  /* oculto, mas NÃO display:none — o input precisa continuar focável para que
+     F8/F3/Esc/Delete/Ctrl+Z e a entrada de coordenadas sigam funcionando */
+  .console.oculto{height:0;min-height:0;overflow:hidden;border-top-color:transparent}
   .hist{
     height:74px;overflow-y:auto;padding:6px 12px;
     font-size:11.5px;line-height:1.5;color:var(--ink-2);
@@ -255,6 +277,7 @@
       <label>modos</label>
       <button id="bOrto" class="on" data-tip="Orto (F8): trava o traço em horizontal ou vertical. Ligado, um clique torto vira o ângulo reto mais próximo.">Orto</button>
       <button id="bSnap" class="on" data-tip="Grade (F9): arredonda cada clique para o passo da grade, definido no painel ao lado. Garante medidas redondas.">Grade</button>
+      <button id="bRastro" class="on" data-tip="Rastreio (F11): mire um canto, espere um instante para adquiri-lo — aparece um + amarelo — e afaste o cursor. Saem guias horizontais e verticais daquele ponto, e o cursor trava nelas. Serve para alinhar com um canto que não é o ponto de onde você está desenhando, coisa que o Orto sozinho não faz. Mirar de novo solta o ponto; Esc limpa todos.">Rastro</button>
       <button id="bOsnap" class="on" data-tip="OSnap (F3): gruda o cursor nas faces das paredes, nos cantos onde duas faces se encontram e nas arestas dos móveis — é assim que um móvel encosta na parede sem entrar nela. Ao desenhar paredes, a prioridade passa para o eixo, que é por onde a parede é traçada. Tem prioridade sobre a grade.">OSnap</button>
       <button id="bCota" class="on" data-tip="Cotas automáticas: gera a medida de cada parede pelo lado de fora, mais as duas cotas gerais do contorno. Desligue para ver o desenho limpo.">Cotas</button>
     </div>
@@ -271,6 +294,7 @@
       <button id="bAbrir" data-tip="Escolhe um .json salvo antes e recarrega o desenho. Também dá para arrastar o arquivo direto sobre a planta.">Abrir</button>
       <button id="bSvg" data-tip="Grava um .svg em escala 1:1, com 1 unidade do arquivo = 1 mm. Abre no Illustrator, Inkscape ou navegador.">SVG</button>
       <button id="bNovo" data-tip="Descarta o desenho atual e começa em branco. Dá para desfazer com Ctrl+Z.">Novo</button>
+      <button id="bConsole" data-tip="Mostra ou esconde o console de comandos (F2). Fechado, os atalhos e a digitação continuam valendo: basta digitar uma letra que ele abre sozinho, e os avisos aparecem numa faixa sobre o desenho.">Console</button>
       <button id="bAjuda" data-tip="Lista completa de comandos, formatos de coordenada e atalhos.">Ajuda</button>
     </div>
   </header>
@@ -293,6 +317,11 @@
         <button data-cmd="DI" data-tip="Medir (DI): informa distância, Δx, Δy e ângulo entre dois pontos, sem criar nada no desenho.">
           <svg viewBox="0 0 20 20"><path d="M3 12.5l9.5-9.5 4 4-9.5 9.5z"/><path d="M6.5 9l1.5 1.5"/><path d="M9 6.5L10.5 8"/></svg>Medir</button>
         <div class="sep"></div>
+        <button data-cmd="P" data-tip="Pan (P): arraste para deslocar a vista sem mexer no desenho. Também funciona a qualquer momento com Alt+arrastar ou com o botão do meio do mouse, e as setas do teclado deslocam de pouco em pouco.">
+          <svg viewBox="0 0 20 20"><path d="M7 9V4.5a1.5 1.5 0 0 1 3 0V9"/><path d="M10 9V3.5a1.5 1.5 0 0 1 3 0V9"/><path d="M13 9.5V5.5a1.5 1.5 0 0 1 3 0V13a4 4 0 0 1-4 4h-2a4 4 0 0 1-3.3-1.8L4 11.5a1.5 1.5 0 0 1 2.4-1.8L7 10.5"/></svg>Pan</button>
+        <button data-cmd="Z" data-tip="Zoom estendido (Z): enquadra todo o desenho. A roda do mouse dá zoom no ponto onde o cursor está.">
+          <svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4"/><path d="M6.5 9h5M9 6.5v5"/></svg>Zoom</button>
+        <div class="sep"></div>
         <button data-cmd="M" data-tip="Mover (M): escolha o objeto, um ponto base e o destino. Aceita coordenada digitada no destino.">
           <svg viewBox="0 0 20 20"><path d="M10 3v14M3 10h14"/><path d="M8 5l2-2 2 2M8 15l2 2 2-2M5 8l-2 2 2 2M15 8l2 2-2 2"/></svg>Mover</button>
         <button data-cmd="CO" data-tip="Copiar (CO): igual ao mover, mas mantém o original no lugar.">
@@ -311,6 +340,7 @@
         <div id="rz"><em>esc</em> <b>1:100</b></div>
         <div id="rsel"><em>sel</em> <b>0</b></div>
       </div>
+      <div class="dica" id="dica"></div>
     </div>
   </div>
 
@@ -366,6 +396,7 @@ CFG.boxH = 750; CFG.boxZ = 0; CFG.boxColor = PALETA[0].c;
 /* altura de corte das paredes no 3D: sem ela, um pé-direito de 280 esconde
    todo o mobiliário e a vista deixa de servir para conferir o leiaute */
 CFG.corte3d = 1200;
+CFG.track = true;   // rastreio a partir de pontos adquiridos
 
 /* ---------------- modelo ---------------- */
 let M = {walls:[], ops:[], dims:[], boxes:[], seq:1};
@@ -420,6 +451,50 @@ const W2S = p => ({x:(p.x-view.x)*view.z + CW/2, y:CH/2 - (p.y-view.y)*view.z});
 const S2W = p => ({x:(p.x-CW/2)/view.z + view.x, y:(CH/2-p.y)/view.z + view.y});
 
 /* ---------------- histórico ---------------- */
+/* ---- console: fechado por padrão, com um indicador flutuante no lugar ---- */
+let consoleAberto = false, dicaTimer = null, dicaTemp = false;
+
+function setConsole(v){
+  consoleAberto = v;
+  const el = document.querySelector('.console');
+  if(el) el.classList.toggle('oculto', !v);
+  const b = document.getElementById('bConsole');
+  if(b) b.classList.toggle('on', v);
+  try{ localStorage.setItem('prancheta.console', v ? '1' : '0'); }catch(e){}
+  if(v && histEl) histEl.scrollTop = histEl.scrollHeight;
+  resize();                 // o canvas ganha ou perde a altura do console
+  atualizaDica();
+  if(cin) cin.focus();
+}
+function mostraDica(txt, cls, temporaria){
+  const el = document.getElementById('dica');
+  if(!el) return;
+  clearTimeout(dicaTimer); dicaTimer = null; dicaTemp = false;
+  if(consoleAberto || !txt){ el.classList.remove('on'); return; }
+  el.textContent = txt;
+  el.classList.toggle('erro', cls === 'err');
+  el.classList.add('on');
+  if(temporaria){
+    dicaTemp = true;
+    dicaTimer = setTimeout(() => {
+      dicaTemp = false; dicaTimer = null;
+      el.classList.remove('on'); atualizaDica();
+    }, 3400);
+  }
+}
+/* com um comando em andamento o prompt é essencial ("Próximo ponto:"), então
+   ele fica fixo no indicador enquanto o console estiver fechado */
+function atualizaDica(){
+  const el = document.getElementById('dica');
+  if(!el) return;
+  if(consoleAberto){ clearTimeout(dicaTimer); dicaTimer = null; dicaTemp = false; el.classList.remove('on'); return; }
+  // um aviso temporário na tela tem precedência: endCmd() loga o resultado e em
+  // seguida repõe o prompt, e sem isto a mensagem sumiria no mesmo instante
+  if(dicaTemp) return;
+  if(AC && pmt) mostraDica(pmt.textContent, null, false);
+  else el.classList.remove('on');
+}
+
 function log(msg, cls){
   const d = document.createElement('div');
   if(cls) d.className = cls;
@@ -427,6 +502,10 @@ function log(msg, cls){
   histEl.appendChild(d);
   while(histEl.children.length > 220) histEl.removeChild(histEl.firstChild);
   histEl.scrollTop = histEl.scrollHeight;
+  if(!consoleAberto && cls !== 'cmd'){
+    const t = msg.trim();
+    if(t) mostraDica(t, cls, true);
+  }
 }
 const docState = () => JSON.stringify({walls:M.walls, ops:M.ops, dims:M.dims, boxes:M.boxes, seq:M.seq});
 function snapshot(){
@@ -507,6 +586,62 @@ function solidSpans(w){
 
 /* ---------------- snap ---------------- */
 let cur = {x:0, y:0}, curRaw = {x:0, y:0}, snapInfo = null, hover = null;
+
+/* ---------------- rastreio a partir de pontos adquiridos (OTRACK) ----------------
+   Mire um ponto notável, espere um instante para adquiri-lo, e afaste o cursor:
+   surgem guias ortogonais saindo dele. Serve para alinhar com um canto que não é
+   o ponto base do comando — coisa que o Orto sozinho não faz. */
+let track = [], trackCand = null, trackTimer = null, rastroAtivo = [];
+
+function adquirir(p){
+  const i = track.findIndex(q => Math.hypot(q.x-p.x, q.y-p.y) < 1);
+  if(i >= 0) track.splice(i, 1);            // mirar de novo solta o ponto
+  else { track.push({x:p.x, y:p.y}); if(track.length > 2) track.shift(); }
+  draw();
+}
+function consideraAquisicao(p, tipo){
+  const notavel = tipo === 'ext' || tipo === 'canto' || tipo === 'inter' || tipo === 'meio';
+  if(!CFG.track || !notavel){
+    trackCand = null;
+    if(trackTimer){ clearTimeout(trackTimer); trackTimer = null; }
+    return;
+  }
+  if(trackCand && Math.hypot(trackCand.x-p.x, trackCand.y-p.y) < 1) return;   // já mirando aqui
+  trackCand = {x:p.x, y:p.y};
+  if(trackTimer) clearTimeout(trackTimer);
+  trackTimer = setTimeout(() => { trackTimer = null; if(trackCand) adquirir(trackCand); }, 320);
+}
+function limpaRastro(){
+  track = []; trackCand = null; rastroAtivo = [];
+  if(trackTimer){ clearTimeout(trackTimer); trackTimer = null; }
+}
+/* guias disponíveis: horizontais e verticais por ponto adquirido, mais as do
+   ponto base quando o Orto está ligado — o cruzamento das duas é o ponto útil */
+function guias(base){
+  const g = [];
+  for(const p of track){
+    g.push({tipo:'rastro', eixo:'h', x:p.x, y:p.y});
+    g.push({tipo:'rastro', eixo:'v', x:p.x, y:p.y});
+  }
+  if(base && CFG.ortho){
+    g.push({tipo:'orto', eixo:'h', x:base.x, y:base.y});
+    g.push({tipo:'orto', eixo:'v', x:base.x, y:base.y});
+  }
+  return g;
+}
+function aplicaRastro(sw, base){
+  if(!CFG.track || !track.length) return null;
+  const tol = 12/view.z;
+  const g = guias(base);
+  const perto = (arr, f) => arr.sort((a,b) => f(a) - f(b))[0];
+  const bh = perto(g.filter(l => l.eixo === 'h' && Math.abs(sw.y - l.y) <= tol), l => Math.abs(sw.y - l.y));
+  const bv = perto(g.filter(l => l.eixo === 'v' && Math.abs(sw.x - l.x) <= tol), l => Math.abs(sw.x - l.x));
+  const temRastro = (bh && bh.tipo === 'rastro') || (bv && bv.tipo === 'rastro');
+  if(!temRastro) return null;                       // sem guia adquirida, o Orto normal resolve
+  if(bh && bv) return {p:{x:bv.x, y:bh.y}, linhas:[bh, bv]};
+  if(bh)       return {p:{x:sw.x,  y:bh.y}, linhas:[bh]};
+  return {p:{x:bv.x, y:sw.y}, linhas:[bv]};
+}
 
 /* interseção de dois segmentos, ou null se forem paralelos ou se cruzarem fora deles */
 function segInter(L1, L2){
@@ -589,8 +724,11 @@ function snapPoint(sw, base){
       consider({x:L.a.x + (L.b.x-L.a.x)*t, y:L.a.y + (L.b.y-L.a.y)*t},
                L.tipo === 'face' ? 'face' : 'eixo', 4);
     }
-    if(best){ snapInfo = best.kind; return best.p; }
+    if(best){ snapInfo = best.kind; rastroAtivo = []; return best.p; }
   }
+  const r = aplicaRastro(sw, base);
+  if(r){ snapInfo = 'rastro'; rastroAtivo = r.linhas; return r.p; }
+  rastroAtivo = [];
   let p = {x:sw.x, y:sw.y};
   if(CFG.ortho && base){
     if(Math.abs(p.x-base.x) > Math.abs(p.y-base.y)) p.y = base.y; else p.x = base.x;
@@ -664,14 +802,17 @@ function defc(names, spec){
   spec.key = names[0];
   for(const n of names) CMDS[n.toUpperCase()] = spec;
 }
-function setPrompt(t){ pmt.textContent = t; }
-function endCmd(msg){
-  if(msg) log(msg);
-  AC = null; setPrompt('Comando:'); syncTools(); draw();
+function setPrompt(t){ pmt.textContent = t; atualizaDica(); }
+function endCmd(msg, cls){
+  if(msg) log(msg, cls);
+  if(AC && AC.spec.fim) AC.spec.fim(AC);
+  AC = null; limpaRastro(); setPrompt('Comando:'); syncTools(); draw();
 }
 function startCmd(name, arg){
   const spec = CMDS[name.toUpperCase()];
   if(!spec){ log('Comando desconhecido: ' + name, 'err'); return; }
+  // trocar de comando encerra o anterior: sem isto, a limpeza dele nunca roda
+  if(AC && AC.spec.fim) AC.spec.fim(AC);
   lastCmd = spec.key;
   AC = {spec, step:0, pts:[], data:{}};
   log(name.toUpperCase() + (arg ? ' ' + arg : ''), 'cmd');
@@ -844,6 +985,31 @@ function openingSpec(kind){
 defc(['POR','PORTA'], openingSpec('porta'));
 defc(['JAN','JANELA'], openingSpec('janela'));
 
+/* inverte a porta selecionada, ou pede uma. INV = dobradiça, INVS = sentido */
+function invSpec(campo, nome){
+  const aplica = o => {
+    snapshot();
+    o[campo] = (o[campo] === -1 ? 1 : -1);
+    persist();
+    return '  porta: ' + nome + ' invertido';
+  };
+  return {
+    start(c){
+      const o = selOp ? M.ops.find(v => v.id === selOp) : null;
+      if(o && o.kind === 'porta'){ const m = aplica(o); endCmd(m); return; }
+      setPrompt('Inverter ' + nome + ' — clique na porta:');
+    },
+    point(c, p){
+      const o = pickOpening(p);
+      if(!o || o.kind !== 'porta'){ log('  clique sobre uma porta', 'err'); return; }
+      selOp = o.id; sel.clear(); selBox = null; selDim = null;
+      endCmd(aplica(o));
+    }
+  };
+}
+defc(['INV','INVERTER'], invSpec('dob', 'a dobradiça'));
+defc(['INVS','SENTIDO'], invSpec('abre', 'o sentido'));
+
 /* --- MÓVEL: caixa por dois cantos --- */
 defc(['CX','CAIXA','MOVEL','MOB'], {
   start(c){ setPrompt('Móvel — primeiro canto:'); },
@@ -891,7 +1057,7 @@ defc(['COR'], {start(c,a){
     if(selBox){ const b = M.boxes.find(v => v.id === selBox); if(b){ snapshot(); b.color = CFG.boxColor; dirty3d = true; persist(); } }
     endCmd('  cor = ' + PALETA[i-1].n);
   }else{
-    endCmd('  uso: COR 1..' + PALETA.length + ' — ' + PALETA.map((p,k) => (k+1) + ' ' + p.n).join(', '));
+    endCmd('  uso: COR 1..' + PALETA.length + ' — ' + PALETA.map((p,k) => (k+1) + ' ' + p.n).join(', '), 'err');
   }
 }});
 
@@ -942,13 +1108,20 @@ defc(['DI','DIST'], {
 
 /* --- comandos imediatos --- */
 defc(['Z','ZOOM'],  {start(){ zoomExtents(); endCmd('  zoom estendido'); }});
+
+/* Pan como ferramenta: fica ativa até Esc, e o arrasto com o botão esquerdo
+   desloca a vista. Alt+arrastar e o botão do meio seguem valendo sempre. */
+defc(['P','PAN','DESLOCAR'], {
+  start(c){ setPrompt('Pan — arraste para deslocar. Esc ou botão direito encerra.'); cv.classList.add('pan'); },
+  fim(){ cv.classList.remove('pan'); }
+});
 defc(['U','DESFAZER'], {start(){ restore(undoStack, redoStack) ? endCmd('  desfeito') : endCmd('  nada a desfazer'); }});
 defc(['RE','REFAZER'], {start(){ restore(redoStack, undoStack) ? endCmd('  refeito') : endCmd('  nada a refazer'); }});
 defc(['3D'], {start(){ setMode(mode === '3d' ? '2d' : '3d'); endCmd('  vista ' + mode.toUpperCase()); }});
 defc(['CORTE'], {start(c,a){
   if(a !== undefined && a !== ''){
     const v = parseFloat(String(a).replace(',','.'));
-    if(!isFinite(v) || v < 0){ endCmd('  uso: CORTE <altura> ou CORTE para ligar/desligar'); return; }
+    if(!isFinite(v) || v < 0){ endCmd('  uso: CORTE <altura> ou CORTE para ligar/desligar', 'err'); return; }
     CFG.corte3d = U.toMM(v);
   }else{
     CFG.corte3d = CFG.corte3d > 0 ? 0 : 1200;
@@ -957,16 +1130,22 @@ defc(['CORTE'], {start(c,a){
   endCmd(CFG.corte3d > 0 ? '  corte das paredes em ' + U.fmt(CFG.corte3d) + ' ' + CFG.unit
                          : '  corte desligado: paredes inteiras');
 }});
-defc(['ESP'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); endCmd('  espessura = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ESP <valor>'); }});
-defc(['ALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); endCmd('  pé-direito = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ALT <valor>'); }});
-defc(['PALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); endCmd('  altura de porta = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PALT <valor>'); }});
-defc(['JALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.winH = U.toMM(v); endCmd('  altura de janela = ' + v + ' ' + CFG.unit); } else endCmd('  uso: JALT <valor>'); }});
-defc(['PEIT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>=0){ CFG.winSill = U.toMM(v); endCmd('  peitoril = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PEIT <valor>'); }});
+defc(['ESP'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallT = U.toMM(v); endCmd('  espessura = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ESP <valor>', 'err'); }});
+defc(['ALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.wallH = U.toMM(v); endCmd('  pé-direito = ' + v + ' ' + CFG.unit); } else endCmd('  uso: ALT <valor>', 'err'); }});
+defc(['PALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.doorH = U.toMM(v); endCmd('  altura de porta = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PALT <valor>', 'err'); }});
+defc(['JALT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.winH = U.toMM(v); endCmd('  altura de janela = ' + v + ' ' + CFG.unit); } else endCmd('  uso: JALT <valor>', 'err'); }});
+defc(['PEIT'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>=0){ CFG.winSill = U.toMM(v); endCmd('  peitoril = ' + v + ' ' + CFG.unit); } else endCmd('  uso: PEIT <valor>', 'err'); }});
 defc(['GRADE','GRID'], {start(c,a){ const v = parseFloat((a||'').replace(',','.')); if(v>0){ CFG.grid = U.toMM(v); endCmd('  grade = ' + v + ' ' + CFG.unit); } else { CFG.snapGrid = !CFG.snapGrid; syncUI(); endCmd('  snap grade ' + (CFG.snapGrid?'ON':'OFF')); } }});
 defc(['ORTO','F8'], {start(){ CFG.ortho = !CFG.ortho; syncUI(); endCmd('  orto ' + (CFG.ortho?'ON':'OFF')); }});
 defc(['OSNAP','F3'], {start(){ CFG.osnap = !CFG.osnap; syncUI(); endCmd('  osnap ' + (CFG.osnap?'ON':'OFF')); }});
+defc(['RASTRO','OTRACK','F11'], {start(){
+  CFG.track = !CFG.track;
+  if(!CFG.track) limpaRastro();
+  syncUI();
+  endCmd('  rastreio ' + (CFG.track?'ON':'OFF'));
+}});
 defc(['COTA','COTAS'], {start(){ CFG.autoDim = !CFG.autoDim; syncUI(); endCmd('  cotas automáticas ' + (CFG.autoDim?'ON':'OFF')); }});
-defc(['UN','UNID'], {start(c,a){ const u = (a||'').toLowerCase(); if(UNITS[u]){ setUnit(u); endCmd('  unidade = ' + u); } else endCmd('  uso: UN mm | cm | m'); }});
+defc(['UN','UNID'], {start(c,a){ const u = (a||'').toLowerCase(); if(UNITS[u]){ setUnit(u); endCmd('  unidade = ' + u); } else endCmd('  uso: UN mm | cm | m', 'err'); }});
 defc(['NOVO','NEW'], {start(){ if(M.walls.length || M.boxes.length) snapshot(); M.walls=[]; M.ops=[]; M.dims=[]; M.boxes=[]; sel.clear(); selOp=null; selBox=null; selDim=null; dirty3d=true; persist(); endCmd('  desenho novo'); }});
 defc(['SALVAR','SAVE'], {start(){ salvarJSON(); endCmd(); }});
 defc(['ABRIR','OPEN'], {start(){ abrirJSON(); endCmd(); }});
@@ -974,14 +1153,26 @@ defc(['SVG'], {start(){ salvarSVG(); endCmd(); }});
 defc(['JSON'], {start(){ dlgSave(); endCmd(); }});
 defc(['COLAR'], {start(){ dlgOpen(); endCmd(); }});
 defc(['AJUDA','?','HELP'], {start(){ dlgHelp(); endCmd(); }});
+defc(['CONSOLE','F2'], {start(){ const v = !consoleAberto; endCmd(); setConsole(v); }});
 defc(['EXEMPLO','DEMO'], {start(){ snapshot(); demo(); zoomExtents(); endCmd('  exemplo carregado'); }});
 
 /* ---------------- seleção ---------------- */
-/* geometria do símbolo da porta: dobradiça e ponta da folha */
+/* Geometria do símbolo da porta. Duas inversões independentes:
+   dob  = de que ponta do vão sai a dobradiça (+1 início, -1 fim)
+   abre = para que lado da parede a folha varre (+1 e -1 são as duas faces) */
 function doorLeaf(w, o){
   const u = wallDir(w), n = wallNorm(w);
-  const h = {x: w.ax + u.x*(o.d - o.wid/2), y: w.ay + u.y*(o.d - o.wid/2)};
-  return {h, end: {x: h.x + n.x*o.wid, y: h.y + n.y*o.wid}, u, n};
+  const dob = o.dob === -1 ? -1 : 1;
+  const abre = o.abre === -1 ? -1 : 1;
+  const dH = o.d - dob*o.wid/2;          // dobradiça
+  const dB = o.d + dob*o.wid/2;          // batente oposto
+  const h = {x: w.ax + u.x*dH, y: w.ay + u.y*dH};
+  return {
+    h,
+    end:     {x: h.x + n.x*o.wid*abre, y: h.y + n.y*o.wid*abre},
+    batente: {x: w.ax + u.x*dB, y: w.ay + u.y*dB},
+    u, n, dob, abre
+  };
 }
 /* A porta é um vão vazio; o que se vê é a folha e o arco de abertura, ambos fora
    da parede. Sem incluí-los na área sensível, só o retângulo do vão seria clicável. */
@@ -999,10 +1190,10 @@ function pickOpening(p){
     let dist = Math.hypot(dd, ds), tol = tolVao;
 
     if(o.kind === 'porta' && dist > tolVao){
-      const {h, end} = doorLeaf(w, o);
+      const {h, end, dob, abre} = doorLeaf(w, o);
       let dSimb = segDist(p, h, end);
       const ax = p.x - h.x, ay = p.y - h.y;
-      const along = ax*u.x + ay*u.y, perp = ax*n.x + ay*n.y;
+      const along = (ax*u.x + ay*u.y)*dob, perp = (ax*n.x + ay*n.y)*abre;
       if(along >= 0 && perp >= 0)                       // só o quadrante varrido pelo arco
         dSimb = Math.min(dSimb, Math.abs(Math.hypot(ax, ay) - o.wid));
       if(dSimb < dist){ dist = dSimb; tol = tolSimb; }
@@ -1033,20 +1224,61 @@ function pickDim(p){
 function autoDims(){
   const out = [];
   if(!M.walls.length) return out;
-  const c = centroid();
+  const c = centroid(), bb = bbox();
+  const FOLGA = 350, FAIXA = 430;
+  const cantos = [[bb.x0,bb.y0],[bb.x1,bb.y0],[bb.x1,bb.y1],[bb.x0,bb.y1]];
+
   for(const w of M.walls){
     const L = wallLen(w); if(L < 1) continue;
     const n = wallNorm(w);
     const mid = {x:(w.ax+w.bx)/2, y:(w.ay+w.by)/2};
     const away = ((mid.x-c.x)*n.x + (mid.y-c.y)*n.y) >= 0 ? 1 : -1;
-    out.push({wall:w, ax:w.ax, ay:w.ay, bx:w.bx, by:w.by, off: away*(w.t/2 + 350)});
+    // uma divisória interna não tem "lado de fora": deslocada só por meia
+    // espessura, a cota cairia sobre as paredes e os móveis. Então empurramos
+    // até passar do contorno inteiro, na direção da normal.
+    const proj = cantos.map(([x,y]) => (x-w.ax)*n.x + (y-w.ay)*n.y);
+    const limite = away > 0 ? Math.max(...proj) + FOLGA : Math.min(...proj) - FOLGA;
+    const base = away*(w.t/2 + FOLGA);
+    const off = away > 0 ? Math.max(base, limite) : Math.min(base, limite);
+    out.push({wall:w, ax:w.ax, ay:w.ay, bx:w.bx, by:w.by, off,
+              dir: Math.round(n.x*away*100)/100 + ',' + Math.round(n.y*away*100)/100});
   }
-  const bb = bbox();
+  // várias cotas empurradas para o mesmo lado empilhariam na mesma linha:
+  // escalona em faixas paralelas, da mais próxima do desenho para a mais longe
+  const grupos = new Map();
+  for(const d of out){
+    if(!grupos.has(d.dir)) grupos.set(d.dir, []);
+    grupos.get(d.dir).push(d);
+  }
+  for(const g of grupos.values()){
+    g.sort((a,b) => Math.abs(a.off) - Math.abs(b.off));
+    let ocupado = -Infinity;
+    for(const d of g){
+      const s = Math.sign(d.off) || 1;
+      let mag = Math.abs(d.off);
+      if(mag < ocupado + FAIXA*0.6) mag = ocupado + FAIXA;
+      ocupado = mag;
+      d.off = s*mag;
+      delete d.dir;
+    }
+  }
+
   if(bb && M.walls.length > 1){
+    // as gerais ficam além de tudo o que já foi empurrado para cada lado
+    const alem = (fx, fy) => {
+      let m = 0;
+      for(const d of out){
+        const l = dimLine(d);
+        for(const p of [l.a, l.b]) m = Math.max(m, (p.x-bb.x0)*fx + (p.y-bb.y0)*fy);
+      }
+      return m;
+    };
     // a normal de um segmento vertical aponta para -x, então o afastamento que
     // joga a cota para fora do desenho é negativo nos dois casos
-    out.push({geral:'largura', ax:bb.x0, ay:bb.y0, bx:bb.x1, by:bb.y0, off:-1100});
-    out.push({geral:'altura',  ax:bb.x1, ay:bb.y0, bx:bb.x1, by:bb.y1, off:-1100});
+    const largura = Math.max(1100, alem(0, -1) + 500);
+    const altura  = Math.max(1100, alem(1, 0) - (bb.x1-bb.x0) + 500);
+    out.push({geral:'largura', ax:bb.x0, ay:bb.y0, bx:bb.x1, by:bb.y0, off:-largura});
+    out.push({geral:'altura',  ax:bb.x1, ay:bb.y0, bx:bb.x1, by:bb.y1, off:-altura});
   }
   return out;
 }
@@ -1123,6 +1355,7 @@ function render(){
   drawHover();
   drawSelection();
   if(AC && AC.spec.preview) AC.spec.preview(AC);
+  drawRastro();
   drawCursor();
   updateReadout();
 }
@@ -1241,15 +1474,19 @@ function drawOpenings(){
       ctx.moveTo(fa.A.x,fa.A.y); ctx.lineTo(fa.B.x,fa.B.y);
       ctx.moveTo(fb.A.x,fb.A.y); ctx.lineTo(fb.B.x,fb.B.y);
       ctx.stroke();
-      // folha + arco de abertura
-      const hinge = a, leafEnd = {x:hinge.x + n.x*o.wid, y:hinge.y + n.y*o.wid};
+      // folha + arco de abertura, respeitando dobradiça e sentido
+      const {h:hinge, end:leafEnd, batente} = doorLeaf(w, o);
       const H = W2S(hinge), Lf = W2S(leafEnd);
       ctx.strokeStyle = css('--ink-2');
       ctx.beginPath(); ctx.moveTo(H.x,H.y); ctx.lineTo(Lf.x,Lf.y); ctx.stroke();
+      // ângulos em coordenadas de tela (y invertido); o arco varre 90° da folha ao batente
       const a0 = Math.atan2(-(leafEnd.y-hinge.y), leafEnd.x-hinge.x);
-      const a1 = Math.atan2(-(b.y-hinge.y), b.x-hinge.x);
+      const a1 = Math.atan2(-(batente.y-hinge.y), batente.x-hinge.x);
+      let delta = a1 - a0;
+      while(delta <= -Math.PI) delta += 2*Math.PI;
+      while(delta > Math.PI) delta -= 2*Math.PI;
       ctx.strokeStyle = css('--ink-3'); ctx.setLineDash([3,3]);
-      ctx.beginPath(); ctx.arc(H.x, H.y, o.wid*view.z, a0, a1, a0 > a1); ctx.stroke();
+      ctx.beginPath(); ctx.arc(H.x, H.y, o.wid*view.z, a0, a1, delta < 0); ctx.stroke();
       ctx.setLineDash([]);
     }
   }
@@ -1447,6 +1684,33 @@ function ghostWall(a,b){
   ctx.restore();
 }
 
+/* ---- rastreio: pontos adquiridos e as guias que saem deles ---- */
+function drawRastro(){
+  if(!CFG.track || !track.length) return;
+  ctx.save();
+  // marcador nos pontos adquiridos
+  ctx.strokeStyle = css('--amber'); ctx.lineWidth = 1.6;
+  for(const p of track){
+    const S = W2S(p);
+    ctx.beginPath();
+    ctx.moveTo(S.x-6, S.y); ctx.lineTo(S.x+6, S.y);
+    ctx.moveTo(S.x, S.y-6); ctx.lineTo(S.x, S.y+6);
+    ctx.stroke();
+  }
+  // guias ativas, atravessando a tela
+  if(rastroAtivo.length){
+    ctx.strokeStyle = css('--amber'); ctx.lineWidth = 1;
+    ctx.setLineDash([7,5]); ctx.globalAlpha = .85;
+    ctx.beginPath();
+    for(const l of rastroAtivo){
+      if(l.eixo === 'h'){ const y = W2S({x:0, y:l.y}).y; ctx.moveTo(0, y); ctx.lineTo(CW, y); }
+      else { const x = W2S({x:l.x, y:0}).x; ctx.moveTo(x, 0); ctx.lineTo(x, CH); }
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /* ---- cursor CAD: crosshair + pickbox + marca de snap ---- */
 function drawCursor(){
   const S = W2S(cur);
@@ -1471,11 +1735,16 @@ function drawCursor(){
     }else if(snapInfo === 'face'){
       ctx.moveTo(S.x-8,S.y-6); ctx.lineTo(S.x+8,S.y-6);
       ctx.lineTo(S.x-8,S.y+6); ctx.lineTo(S.x+8,S.y+6); ctx.stroke();
+    }else if(snapInfo === 'rastro'){
+      ctx.strokeStyle = css('--amber');
+      ctx.moveTo(S.x-8,S.y); ctx.lineTo(S.x+8,S.y);
+      ctx.moveTo(S.x,S.y-8); ctx.lineTo(S.x,S.y+8); ctx.stroke();
+      ctx.strokeRect(S.x-4.5, S.y-4.5, 9, 9);
     }else{
       ctx.arc(S.x,S.y,7,0,Math.PI*2); ctx.stroke();
     }
     ctx.font = '600 10px ' + css('--f-disp');
-    ctx.fillStyle = css('--accent');
+    ctx.fillStyle = css(snapInfo === 'rastro' ? '--amber' : '--accent');
     ctx.fillText(snapInfo.toUpperCase(), S.x+11, S.y-9);
   }
   ctx.restore();
@@ -1889,8 +2158,10 @@ cv.addEventListener('pointerdown', e => {
     cv.classList.add('orbit');
     return;
   }
-  if(e.button === 1 || (e.button === 0 && e.altKey)){
+  const ferramentaPan = AC && AC.spec.key === 'P';
+  if(e.button === 1 || (e.button === 0 && (e.altKey || ferramentaPan))){
     panning = true; panStart = {x:e.offsetX, y:e.offsetY, vx:view.x, vy:view.y};
+    cv.classList.add('arrastando');
     e.preventDefault(); return;
   }
   if(e.button === 2) return;
@@ -1939,6 +2210,7 @@ cv.addEventListener('pointermove', e => {
   }
   curRaw = S2W({x:e.offsetX, y:e.offsetY});
   cur = snapPoint(curRaw, basePoint());
+  consideraAquisicao(cur, snapInfo);
   updateHover();
   draw();
 });
@@ -1971,7 +2243,10 @@ stage.addEventListener('drop', e => {
   lerArquivo(f);
 });
 
-const stopDrag = () => { panning = false; orbiting = false; cv.classList.remove('orbit'); };
+const stopDrag = () => {
+  panning = false; orbiting = false;
+  cv.classList.remove('orbit'); cv.classList.remove('arrastando');
+};
 cv.addEventListener('pointerup', stopDrag);
 cv.addEventListener('pointercancel', stopDrag);
 cv.addEventListener('contextmenu', e => {
@@ -1993,15 +2268,31 @@ cv.addEventListener('wheel', e => {
 }, {passive:false});
 
 /* ---- linha de comando ---- */
-cin.addEventListener('keydown', e => {
+function tecla(e){
+  if(!e.preventDefault) e.preventDefault = () => {};
+  if(e.key === 'F2'){ setConsole(!consoleAberto); e.preventDefault(); return; }
+  // digitar uma letra com o console fechado abre e deixa o caractere passar
+  if(!consoleAberto && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey)
+    setConsole(true);
   if(e.key === 'Escape'){
     if(mode === '3d'){ setMode('2d'); return; }
-    if(AC) endCmd('  cancelado'); else { sel.clear(); selOp = null; selBox = null; selDim = null; syncTools(); draw(); }
+    if(AC) endCmd('  cancelado');
+    else { sel.clear(); selOp = null; selBox = null; selDim = null; limpaRastro(); syncTools(); draw(); }
     cin.value = ''; e.preventDefault(); return;
   }
   if(e.key === 'Delete' && !cin.value){ startCmd('E'); e.preventDefault(); return; }
   if(e.key === 'F8'){ startCmd('ORTO'); e.preventDefault(); return; }
   if(e.key === 'F3'){ startCmd('OSNAP'); e.preventDefault(); return; }
+  if(e.key === 'F11'){ startCmd('RASTRO'); e.preventDefault(); return; }
+  // setas deslocam a vista quando não há texto sendo digitado
+  if(!cin.value && e.key.startsWith('Arrow')){
+    const passo = (e.shiftKey ? 200 : 60) / view.z;
+    if(e.key === 'ArrowLeft')  view.x -= passo;
+    if(e.key === 'ArrowRight') view.x += passo;
+    if(e.key === 'ArrowUp')    view.y += passo;
+    if(e.key === 'ArrowDown')  view.y -= passo;
+    draw(); e.preventDefault(); return;
+  }
   if(e.key === 'F9'){ startCmd('GRADE'); e.preventDefault(); return; }
   if(e.key === 'z' && (e.ctrlKey||e.metaKey)){ startCmd('U'); e.preventDefault(); return; }
   if(e.key === 'y' && (e.ctrlKey||e.metaKey)){ startCmd('RE'); e.preventDefault(); return; }
@@ -2010,7 +2301,8 @@ cin.addEventListener('keydown', e => {
     e.preventDefault(); submit(); return;
   }
   if(e.key === 'Enter'){ e.preventDefault(); submit(); }
-});
+}
+cin.addEventListener('keydown', tecla);
 
 function submit(){
   const raw = cin.value.trim();
@@ -2035,6 +2327,7 @@ function syncUI(){
   $('bOrto').classList.toggle('on', CFG.ortho);
   $('bSnap').classList.toggle('on', CFG.snapGrid);
   $('bOsnap').classList.toggle('on', CFG.osnap);
+  $('bRastro').classList.toggle('on', CFG.track);
   $('bCota').classList.toggle('on', CFG.autoDim);
   $('b2d').classList.toggle('on', mode === '2d');
   $('b3d').classList.toggle('on', mode === '3d');
@@ -2162,6 +2455,11 @@ function renderProps(){
              : 'Altura do vão contada do piso — o padrão brasileiro é 210.')
          + (jan ? pRow('os', 'Peitoril', op.sill, 'Altura do piso até a base da janela. Zero transforma a janela em porta-balcão.') : '')
          + pRow('od', 'Posição', op.d, 'Distância do início da parede até o centro do vão.')
+         + (jan ? '' :
+             '<div class="swrow"><span class="swlabel">Abertura</span><div class="dupla">' +
+             '<button id="p_oinvd" data-tip="Troca a ponta do vão de onde sai a dobradiça — a mão da porta, esquerda ou direita.">Dobradiça</button>' +
+             '<button id="p_oinva" data-tip="Troca a face da parede para onde a folha varre — abre para dentro ou para fora do cômodo.">Sentido</button>' +
+             '</div></div>')
          + '<button class="del" id="p_odel">Apagar vão</button>';
     bind = [
       ['ow', v => { op.wid = clamp(v, 100, maxW); op.d = clamp(op.d, op.wid/2, maxW - op.wid/2); }],
@@ -2249,6 +2547,19 @@ function renderProps(){
       renderProps(); draw();
     };
   }
+  if(op && op.kind === 'porta'){
+    const inv = (id, campo) => {
+      const b = $(id); if(!b) return;
+      b.onclick = () => {
+        snapshot();
+        op[campo] = (op[campo] === -1 ? 1 : -1);
+        persist(); renderProps(); draw();
+        log('  porta: ' + (campo === 'dob' ? 'dobradiça trocada' : 'sentido de abertura trocado'));
+      };
+    };
+    inv('p_oinvd', 'dob');
+    inv('p_oinva', 'abre');
+  }
   const delOp = $('p_odel');
   if(delOp) delOp.onclick = () => {
     snapshot();
@@ -2289,9 +2600,11 @@ $('b3d').onclick = () => setMode('3d');
 $('bOrto').onclick = () => startCmd('ORTO');
 $('bSnap').onclick = () => startCmd('GRADE');
 $('bOsnap').onclick = () => startCmd('OSNAP');
+$('bRastro').onclick = () => startCmd('RASTRO');
 $('bCota').onclick = () => startCmd('COTA');
 $('bUn').onclick = () => { const k = Object.keys(UNITS); setUnit(k[(k.indexOf(CFG.unit)+1)%k.length]); };
 $('bCorte').onclick = () => startCmd('CORTE');
+$('bConsole').onclick = () => setConsole(!consoleAberto);
 $('bSalvar').onclick = salvarJSON;
 $('bAbrir').onclick = abrirJSON;
 $('bSvg').onclick = salvarSVG;
@@ -2502,6 +2815,7 @@ function dlgHelp(){
   const rows = [
     ['Desenho', [
       ['Barra lateral', 'Cada ferramenta tem botão à esquerda; o painel abaixo dela traz as medidas.'],
+      ['CONSOLE · F2', 'Mostra ou esconde o console. Fechado por padrão: digitar uma letra abre sozinho, e os avisos aparecem numa faixa sobre o desenho.'],
       ['L · PAREDE', 'Cadeia de paredes. Enter ou botão direito finaliza.'],
       ['POR [larg]', 'Insere porta na parede clicada (padrão 80 × 210).'],
       ['JAN [larg]', 'Insere janela (padrão 120 × 120, peitoril 90).'],
@@ -2528,7 +2842,9 @@ function dlgHelp(){
     ]],
     ['Vista e modos', [
       ['Z', 'Zoom estendido. Roda do mouse = zoom no cursor.'],
-      ['Alt+arrastar / botão do meio', 'Desloca a vista (pan).'],
+      ['P · PAN', 'Ferramenta de deslocar a vista: arraste até apertar Esc.'],
+      ['Alt+arrastar / botão do meio', 'Desloca a vista a qualquer momento, sem trocar de ferramenta.'],
+      ['Setas', 'Deslocam a vista de pouco em pouco; com Shift, mais rápido.'],
       ['F8 · F9 · F3', 'Orto · snap na grade · osnap.'],
       ['Snap nas faces', 'Com osnap ligado, o cursor gruda na face da parede e nos cantos de cômodo, não no eixo — é o que faz o móvel encostar sem invadir a alvenaria. Desenhando parede, o eixo volta a ter prioridade.'],
       ['3D', 'Alterna vista 3D. Arrastar orbita, Shift+arrastar desloca.'],
@@ -2602,6 +2918,9 @@ zoomExtents();
 log('Prancheta CAD — planta baixa em escala real.');
 log('Digite AJUDA para a lista de comandos, ou L para começar uma parede.', 'ok');
 setPrompt('Comando:');
+let consolePref = false;
+try{ consolePref = localStorage.getItem('prancheta.console') === '1'; }catch(e){}
+setConsole(consolePref);
 cin.focus();
 document.addEventListener('click', e => {
   if(!modal.classList.contains('open') && !e.target.closest('button, input')) cin.focus();

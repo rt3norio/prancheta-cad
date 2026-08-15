@@ -49,7 +49,9 @@ tab does not lose your work.
 
 - **Walls** drawn as a chain, with thickness and ceiling height, corners joined
   automatically
-- **Doors and windows** inserted into the wall you click, with width, height and sill
+- **Doors and windows** inserted into the wall you click, with width, height and
+  sill, and door swing flippable on both axes — hinge left or right, leaf sweeping
+  inward or outward
 - **Furniture** as boxes with a name, height, base elevation and a pastel colour —
   desk, bed, wardrobe, counter, wall cabinet
 - **Dimensions** generated automatically per wall and around the overall outline,
@@ -74,14 +76,18 @@ explains itself on hover.
 | Furniture | Móvel | `CX` | Click two opposite corners |
 | Dimension | Cota | `DIM` | Two points to measure, then a third places the line |
 | Measure | Medir | `DI` | Reports distance, Δx, Δy and angle; creates nothing |
+| Pan | Pan | `P` | Drags the view until you press `Esc` |
+| Zoom | Zoom | `Z` | Fits the whole drawing |
 | Move | Mover | `M` | Object, base point, destination |
 | Copy | Copiar | `CO` | Same as move, keeping the original |
 | Delete | Apagar | `E` | Removes whatever is selected |
 
 Clicking an existing object opens its properties: an opening gives you width, height,
-sill and position along the wall; a piece of furniture gives you name, dimensions,
-base elevation, rotation and colour; a wall gives you thickness, ceiling height and
-its measured length; a dimension gives you its offset.
+sill and position along the wall — and, for a door, two buttons that flip the
+**hinge** (which end it swings from) and the **swing direction** (which face of the
+wall the leaf sweeps); a piece of furniture gives you name, dimensions, base
+elevation, rotation and colour; a wall gives you thickness, ceiling height and its
+measured length; a dimension gives you its offset.
 
 ---
 
@@ -109,6 +115,7 @@ The four formats, always in the current working unit:
 | `ESP 15` | Wall thickness |
 | `ALT 280` | Ceiling height |
 | `PALT 210` · `JALT 120` · `PEIT 90` | Door height, window height, sill height |
+| `INV` · `INVS` | Flip the door's hinge side and its swing direction |
 | `COR 1..8` | Furniture colour |
 | `GRADE 10` | Grid step |
 | `UN mm\|cm\|m` | Working unit |
@@ -119,8 +126,18 @@ The four formats, always in the current working unit:
 
 ### Shortcuts
 
-`F8` ortho · `F9` grid snap · `F3` object snap · `Delete` · `Ctrl+Z` / `Ctrl+Y` undo
-and redo · `Alt+drag` or middle button to pan · mouse wheel to zoom at the cursor.
+`F8` ortho · `F9` grid snap · `F3` object snap · `F11` tracking · `F2` console ·
+`Delete` · `Ctrl+Z` / `Ctrl+Y` undo and redo · arrow keys pan the view, faster with
+`Shift` · `Alt+drag` or middle button also pan, at any time · mouse wheel to zoom at
+the cursor.
+
+## Console
+
+The command bar is **hidden by default**, so the drawing gets the whole screen.
+Typing any letter opens it automatically, and `F2` or the `Console` button toggle it
+by hand. Nothing is lost while it is closed: shortcuts keep working and messages
+appear on a strip over the drawing, red when they are errors. The preference is
+remembered between sessions.
 
 ---
 
@@ -138,6 +155,20 @@ walls are actually traced along.
 
 Cursor markers: square for endpoint and corner, X for intersection, hourglass for
 face, triangle for midpoint.
+
+### Tracking (F11)
+
+Hover a corner, wait a moment — a yellow `+` appears, the point is **acquired** — and
+move the cursor away. Horizontal and vertical guides extend from it, and the cursor
+locks onto them.
+
+This is what ortho alone cannot do: ortho aligns with the **point you are drawing
+from**, tracking aligns with **any corner you hovered earlier**. Acquire two points and
+the crossing of their guides becomes a snap point — that is how you pick up, say, one
+wall's vertical alignment at another wall's horizontal height.
+
+Hovering the same point again releases it, `Esc` clears them all, and two points stay
+acquired at a time. Object snap takes priority over the guides.
 
 ---
 
@@ -247,7 +278,7 @@ Decisions worth knowing before touching the code:
 node test.mjs prancheta.html
 ```
 
-94 assertions, no dependencies: the harness extracts the `<script>` from the HTML,
+131 assertions, no dependencies: the harness extracts the `<script>` from the HTML,
 runs it in a context with a stubbed DOM and an instrumented canvas, and checks the
 real geometry — hollow openings in 3D, camera matrices, face snapping, hit-testing
 for every object type, a round trip through the file format, and the exported SVG.
@@ -301,6 +332,11 @@ Every term you will see on screen:
 | Base | Base elevation |
 | Rotação | Rotation |
 | Afastamento | Offset |
+| Dobradiça · Sentido | Hinge · Swing direction |
+| Pan · Zoom | Pan · Zoom |
+| Rastro | Tracking |
+| Corte | Wall cut (dollhouse view) |
+| Console | Console |
 | Posição | Position |
 | Nome | Name |
 | Grade | Grid |

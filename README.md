@@ -43,7 +43,9 @@ fechar a aba não perde o trabalho.
 ## O que dá para fazer
 
 - **Paredes** em cadeia, com espessura e pé-direito, junção automática nos cantos
-- **Portas e janelas** inseridas na parede clicada, com largura, altura e peitoril
+- **Portas e janelas** inseridas na parede clicada, com largura, altura e peitoril,
+  e a abertura da porta invertível nos dois eixos — dobradiça à esquerda ou à
+  direita, folha varrendo para dentro ou para fora
 - **Móveis** como caixas com nome, altura, base e cor pastel — mesa, cama, armário,
   bancada, armário aéreo
 - **Cotas** automáticas em cada parede e no contorno geral, mais cotas manuais
@@ -67,13 +69,17 @@ explicação ao passar o mouse.
 | Móvel | `CX` | Clique dois cantos opostos |
 | Cota | `DIM` | Dois pontos a medir, depois um terceiro posiciona a linha |
 | Medir | `DI` | Informa distância, Δx, Δy e ângulo, sem criar nada |
+| Pan | `P` | Arrasta a vista até você apertar `Esc` |
+| Zoom | `Z` | Enquadra o desenho inteiro |
 | Mover | `M` | Objeto, ponto base, destino |
 | Copiar | `CO` | Igual ao mover, mantendo o original |
 | Apagar | `E` | Remove o que estiver selecionado |
 
 Clicar num objeto já desenhado abre suas propriedades: um vão traz largura, altura,
-peitoril e posição; um móvel traz nome, dimensões, base, rotação e cor; uma parede
-traz espessura, pé-direito e o comprimento medido; uma cota traz o afastamento.
+peitoril e posição — e, sendo porta, dois botões que invertem a **dobradiça** (a mão
+da porta) e o **sentido** (para que lado a folha varre); um móvel traz nome,
+dimensões, base, rotação e cor; uma parede traz espessura, pé-direito e o
+comprimento medido; uma cota traz o afastamento.
 
 ---
 
@@ -101,6 +107,7 @@ Os quatro formatos, sempre na unidade de trabalho corrente:
 | `ESP 15` | Espessura da parede |
 | `ALT 280` | Pé-direito |
 | `PALT 210` · `JALT 120` · `PEIT 90` | Altura de porta, de janela e peitoril |
+| `INV` · `INVS` | Inverte a dobradiça e o sentido de abertura da porta |
 | `COR 1..8` | Cor do móvel |
 | `GRADE 10` | Passo da grade |
 | `UN mm\|cm\|m` | Unidade de trabalho |
@@ -111,9 +118,18 @@ Os quatro formatos, sempre na unidade de trabalho corrente:
 
 ### Atalhos
 
-`F8` ortogonal · `F9` grade · `F3` osnap · `Delete` apagar · `Ctrl+Z` / `Ctrl+Y`
-desfazer e refazer · `Alt+arrastar` ou botão do meio para deslocar a vista · roda
-do mouse para zoom no cursor.
+`F8` ortogonal · `F9` grade · `F3` osnap · `F11` rastreio · `F2` console ·
+`Delete` apagar · `Ctrl+Z` / `Ctrl+Y` desfazer e refazer · setas deslocam a vista,
+com `Shift` mais rápido · `Alt+arrastar` ou botão do meio também deslocam, a
+qualquer momento · roda do mouse para zoom no cursor.
+
+## Console
+
+A barra de comandos fica **escondida por padrão** — o desenho ocupa a tela inteira.
+Digitar qualquer letra abre o console automaticamente, e `F2` ou o botão `Console`
+alternam à mão. Com ele fechado nada se perde: os atalhos continuam valendo e as
+mensagens aparecem numa faixa sobre o desenho, em vermelho quando são erro. A
+preferência fica guardada entre sessões.
 
 ---
 
@@ -131,6 +147,20 @@ traçada.
 
 Marcadores no cursor: quadrado para extremidade e canto, X para interseção,
 ampulheta para face, triângulo para meio.
+
+### Rastreio (F11)
+
+Mire um canto, espere um instante — aparece um `+` amarelo, o ponto foi
+**adquirido** — e afaste o cursor. Saem dele guias horizontais e verticais, e o
+cursor trava nelas.
+
+É o que o Orto sozinho não faz: o Orto alinha com o **ponto de onde você está
+desenhando**, o rastreio alinha com **qualquer canto que você mirou antes**. Adquira
+dois pontos e o cruzamento das guias vira um ponto de encaixe — assim se pega, por
+exemplo, o alinhamento vertical de uma parede com a altura horizontal de outra.
+
+Mirar o mesmo ponto de novo o solta; `Esc` limpa todos; dois pontos ficam
+adquiridos por vez. O osnap tem prioridade sobre as guias.
 
 ---
 
@@ -239,7 +269,7 @@ Algumas decisões que valem ser conhecidas por quem for mexer:
 node test.mjs prancheta.html
 ```
 
-94 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
+131 asserções, sem dependências: o harness extrai o `<script>` do HTML, roda num
 contexto com o DOM stubado e um canvas instrumentado, e verifica a geometria de
 verdade — vãos vazados no 3D, matrizes de câmera, snap nas faces, hit-test de cada
 tipo de objeto, ida e volta pelo arquivo e o SVG exportado.
