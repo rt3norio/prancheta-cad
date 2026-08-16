@@ -165,30 +165,41 @@ that opens itself when you select an object and gets out of the way while you
 draw. On a phone held sideways the tools move back to the side, where the space
 actually is.
 
-**Gestures**
-
-| Gesture | What it does |
-| --- | --- |
-| Tap | Acts on the point you touched: feeds the running command, or selects |
-| Press and drag | Aim: the crosshair rises above your finger, with live snap and preview, and commits where it points |
-| One-finger drag, no command running | Pans the view |
-| Two-finger pinch | Zoom, and the midpoint between the fingers drags the view along |
-| One finger in 3D | Orbits |
-
-Aiming exists because your finger covers exactly what you are trying to hit: while
-dragging, the crosshair sits 36 px above it so you can check the snap before
-letting go.
-
 **Action bar**
 
 Touch has no right button and no Enter key, so a small bar floats over the
-drawing: `OK` ends the running command — this is what closes a wall chain —,
-`Esc` cancels or clears the selection, `↺` undoes, and `⌨` opens the console to
-type commands and coordinates. `OK` only shows up while a command is running.
+drawing: `✛` toggles aim mode, `✓` commits the point, `OK` ends the running
+command — this is what closes a wall chain —, `Esc` cancels or clears the
+selection, `↺` undoes, and `⌨` opens the console to type commands and
+coordinates. `OK` only shows up while a command is running, `✓` only while aim
+mode is on.
 
 The virtual keyboard does **not** pop up on its own: on a touch device the command
 line takes focus only when you ask for it, through `⌨`. A physical keyboard
 attached to a tablet keeps every shortcut working.
+
+**Aim mode** (`✛`)
+
+Tapping straight at a point is fast, but your finger covers exactly what you are
+trying to hit. With aim mode on, dragging stops panning the view and instead
+**pushes the crosshair from wherever it already is**, like a laptop trackpad: you
+can drag from an empty corner of the screen and aim without covering anything.
+Drag slowly to fine-tune, quickly to cross the screen. Nothing is committed until
+you press `✓`.
+
+To draw a wall: pick Wall, drag to the first corner, `✓`, drag to the next, `✓`,
+then `OK` to close the chain.
+
+Aim mode is off by default and the preference is remembered between sessions.
+
+**Gestures**
+
+| Gesture | Aim off | Aim on |
+| --- | --- | --- |
+| Tap | Acts on the point you touched: feeds the command, or selects | Nothing — `✓` is what commits |
+| One-finger drag | Pans the view (no command running); pressing first gives a temporary aim, 36 px above the finger | Pushes the crosshair, relative, with fine-tuning |
+| Two-finger pinch | Zoom, and the midpoint between the fingers drags the view along | Same |
+| One finger in 3D | Orbits | Orbits |
 
 ---
 

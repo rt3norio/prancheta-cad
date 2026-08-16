@@ -157,29 +157,39 @@ gaveta, que abre sozinha quando você seleciona um objeto e some enquanto você
 desenha. Deitado num telefone as ferramentas voltam para a lateral, que é onde
 sobra espaço.
 
-**Gestos**
-
-| Gesto | O que faz |
-| --- | --- |
-| Toque seco | Age no ponto tocado: coloca o ponto do comando, ou seleciona |
-| Segurar e arrastar | Mira: a cruz sobe acima do dedo, com snap e prévia ao vivo, e solta no ponto mirado |
-| Arrastar um dedo, sem comando ativo | Desloca a vista |
-| Pinça de dois dedos | Zoom, e o centro dos dedos arrasta a vista junto |
-| Um dedo no 3D | Orbita |
-
-A mira existe porque o dedo tapa exatamente o que você quer acertar: arrastando,
-a cruz fica 36 px acima dele e dá para conferir o snap antes de soltar.
-
 **Barra de ações**
 
 Sem mouse não há botão direito nem tecla Enter, então uma barrinha flutua sobre o
-desenho: `OK` encerra o comando em andamento — é o que fecha uma cadeia de
-paredes —, `Esc` cancela ou limpa a seleção, `↺` desfaz e `⌨` abre o console para
-digitar comandos e coordenadas. O `OK` só aparece quando há comando ativo.
+desenho: `✛` liga o modo mira, `✓` confirma o ponto, `OK` encerra o comando em
+andamento — é o que fecha uma cadeia de paredes —, `Esc` cancela ou limpa a
+seleção, `↺` desfaz e `⌨` abre o console para digitar comandos e coordenadas. O
+`OK` só aparece com comando em andamento, e o `✓` só com a mira ligada.
 
 O teclado virtual **não** abre sozinho: num aparelho de toque a linha de comando
 só recebe foco quando você pede, pelo `⌨`. Teclado físico ligado a um tablet
 continua funcionando com todos os atalhos.
+
+**Modo mira** (`✛`)
+
+Tocar direto no ponto é rápido, mas o dedo cobre exatamente o que você quer
+acertar. Com a mira ligada o arrasto para de deslocar a vista e passa a **empurrar
+a cruz a partir de onde ela já está**, como o trackpad de um notebook: dá para
+arrastar de um canto vazio da tela e mirar sem tapar nada. Dedo devagar afina,
+dedo rápido atravessa a tela. Nada é cometido até você apertar `✓`.
+
+Para desenhar uma parede: escolha Parede, arraste até o primeiro canto, `✓`,
+arraste até o próximo, `✓`, e `OK` para fechar a cadeia.
+
+O modo fica desligado por padrão e a preferência é guardada entre sessões.
+
+**Gestos**
+
+| Gesto | Mira desligada | Mira ligada |
+| --- | --- | --- |
+| Toque seco | Age no ponto tocado: coloca o ponto, ou seleciona | Nada — quem comete é o `✓` |
+| Arrastar um dedo | Desloca a vista (sem comando ativo); segurar antes vira mira temporária, 36 px acima do dedo | Empurra a cruz, relativo e com ajuste fino |
+| Pinça de dois dedos | Zoom, e o centro dos dedos arrasta a vista junto | Igual |
+| Um dedo no 3D | Orbita | Orbita |
 
 ---
 

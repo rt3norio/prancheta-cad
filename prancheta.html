@@ -277,7 +277,10 @@
   .barra{
     position:absolute;left:50%;transform:translateX(-50%);
     bottom:calc(10px + env(safe-area-inset-bottom));
-    z-index:4;display:none;gap:5px;
+    z-index:4;display:none;gap:5px;flex-wrap:wrap;justify-content:center;
+    /* sem max-content o encaixe do absoluto quebra a barra em duas linhas
+       mesmo quando os seis botões caberiam numa só */
+    width:max-content;max-width:calc(100% - 16px);
     background:color-mix(in srgb,var(--rail) 93%,transparent);
     border:1px solid var(--edge);border-radius:4px;padding:4px;
     box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 22%,transparent);
@@ -288,7 +291,10 @@
     border:1px solid var(--edge);color:var(--ink-2);
   }
   .barra button.pri{background:var(--accent);color:var(--on-fg);border-color:var(--accent)}
-  body.toque .dica{bottom:calc(62px + env(safe-area-inset-bottom))}
+  /* estado, não ação: o ✛ ligado não pode competir com o ✓ */
+  .barra button.on{background:var(--accent-soft);color:var(--ink);border-color:var(--accent)}
+  /* --barra-h vem do JS: a barra tem uma ou duas linhas conforme os botões */
+  body.toque .dica{bottom:calc(var(--barra-h,50px) + 22px + env(safe-area-inset-bottom))}
   /* sem mouse não há hover: o cursor de mira só existe depois do toque */
   body.toque #cv{cursor:default}
 
@@ -479,6 +485,8 @@
       </div>
       <div class="dica" id="dica"></div>
       <div class="barra" id="barra">
+        <button id="bMira" data-tip="Modo mira: o arrasto passa a mover a cruz em vez de deslocar a vista, como um trackpad — o dedo nunca tapa o alvo. O pan continua com dois dedos, e o ✓ confirma o ponto.">✛</button>
+        <button id="bPonto" class="pri" data-tip="Confirma o ponto onde a cruz está: coloca o ponto do comando, ou seleciona o que estiver ali.">✓</button>
         <button id="bOk" class="pri" data-tip="Encerra o comando em andamento — equivale ao Enter ou ao botão direito.">OK</button>
         <button id="bEsc" data-tip="Cancela o comando ou limpa a seleção — equivale ao Esc.">Esc</button>
         <button id="bUndo" data-tip="Desfaz a última alteração (Ctrl+Z).">↺</button>
@@ -1904,6 +1912,14 @@ function drawCursor(){
   ctx.stroke();
   ctx.globalAlpha = 1;
   ctx.strokeRect(S.x-6.5, S.y-6.5, 13, 13);
+  if(modoMira){
+    // no modo mira a cruz é o ponto ativo, não o reflexo do dedo: o anel avisa
+    // que ela fica onde está até alguém apertar o ✓
+    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.2;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.arc(S.x, S.y, 15, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
   if(snapInfo && snapInfo !== 'grade'){
     ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1.8;
     ctx.beginPath();
@@ -2328,6 +2344,7 @@ function resize(){
   CW = rect.width; CH = rect.height;
   cv.width = Math.round(CW*DPR); cv.height = Math.round(CH*DPR);
   cv3.width = cv.width; cv3.height = cv.height;
+  if(typeof medeBarra === 'function') medeBarra();
   draw();
 }
 window.addEventListener('resize', resize);
@@ -2417,6 +2434,35 @@ const MIRA_DY = 36;      // px que a cruz sobe em relação ao dedo
 const MIRA_FOLGA = 9;    // px que ainda contam como toque seco
 const MIRA_MS = 240;     // segurar parado por este tempo também entra em mira
 
+/* ---- modo mira ----
+   Tocar direto no ponto é rápido mas impreciso: o dedo cobre exatamente o que
+   se quer acertar. Ligado o modo, o arrasto deixa de deslocar a vista e passa
+   a empurrar a cruz a partir de onde ela já está, como o trackpad de um
+   notebook — dá para arrastar de um canto vazio e mirar sem tapar nada — e o
+   ponto só é cometido pelo ✓. O pan continua nos dois dedos. */
+let modoMira = false;
+const MIRA_GANHO_MIN = 0.35;   // dedo devagar: ajuste fino
+const MIRA_GANHO_MAX = 1;      // dedo rápido: atravessa a tela
+const MIRA_GANHO_V = 6;        // px por evento a partir dos quais o ganho satura
+
+function setMira(v){
+  modoMira = !!v;
+  try{ localStorage.setItem('prancheta.mira', modoMira ? '1' : '0'); }catch(e){}
+  if(modoMira){
+    // depois de um pan a cruz pode ter ficado fora da tela, e arrastar uma
+    // cruz que não se vê não ensina nada: ela volta para o centro
+    const s = W2S(cur);
+    if(!(s.x > 8 && s.y > 8 && s.x < CW-8 && s.y < CH-8)){
+      curRaw = S2W({x:CW/2, y:CH/2});
+      cur = snapPoint(curRaw, basePoint());
+    }
+    log('  mira ligada — arraste em qualquer lugar para mover a cruz, ✓ confirma', 'ok');
+  }else{
+    log('  mira desligada — o toque volta a agir direto no ponto', 'ok');
+  }
+  syncBarra(); draw();
+}
+
 function pontoMira(){ return mira.mirando ? {x:mira.p.x, y:mira.p.y - MIRA_DY} : mira.p; }
 function soltaMira(){ if(mira){ clearTimeout(mira.timer); mira = null; } }
 
@@ -2462,6 +2508,11 @@ function toqueDown(e){
     panning = true; panStart = {x:p.x, y:p.y, vx:view.x, vy:view.y};
     return;
   }
+  if(modoMira){
+    // nada acontece até o dedo andar: um encostão não deve mexer a cruz
+    mira = {id:e.pointerId, p, rel:true, s0:W2S(cur), acc:{x:0, y:0}};
+    return;
+  }
   mira = {id:e.pointerId, x0:p.x, y0:p.y, p, mirando:false, podePan:!AC};
   mira.timer = setTimeout(() => {
     if(!mira) return;
@@ -2473,6 +2524,20 @@ function toqueDown(e){
 
 function toqueMove(e){
   if(!mira || mira.id !== e.pointerId) return;
+  if(mira.rel){
+    const q = dedos.get(e.pointerId);
+    const dx = q.x - mira.p.x, dy = q.y - mira.p.y;
+    mira.p = q;
+    // o ganho sai da velocidade: devagar afina, rápido percorre
+    const g = clamp(Math.hypot(dx, dy)/MIRA_GANHO_V, MIRA_GANHO_MIN, MIRA_GANHO_MAX);
+    // o acumulado é independente do snap, senão a cruz grudaria no primeiro imã
+    mira.acc.x += dx*g; mira.acc.y += dy*g;
+    moveCursor({
+      x: clamp(mira.s0.x + mira.acc.x, 0, CW),
+      y: clamp(mira.s0.y + mira.acc.y, 0, CH)
+    });
+    draw(); return;
+  }
   mira.p = dedos.get(e.pointerId);
   if(!mira.mirando){
     if(Math.hypot(mira.p.x-mira.x0, mira.p.y-mira.y0) < MIRA_FOLGA) return;
@@ -2489,6 +2554,8 @@ function toqueMove(e){
 
 function toqueUp(e){
   if(!mira || mira.id !== e.pointerId) return;
+  // no modo mira soltar não comete nada: quem comete é o ✓
+  if(mira.rel){ mira = null; return; }
   clearTimeout(mira.timer);
   moveCursor(pontoMira());
   mira = null;
@@ -2729,10 +2796,24 @@ function syncTools(){
   renderProps();
   syncBarra();
 }
-/* o OK só faz sentido com um comando em andamento */
+/* o OK só faz sentido com um comando em andamento, e o ✓ só no modo mira */
 function syncBarra(){
   const ok = $('bOk');
   if(ok) ok.hidden = !AC;
+  const pt = $('bPonto');
+  if(pt) pt.hidden = !modoMira;
+  const m = $('bMira');
+  if(m) m.classList.toggle('on', modoMira);
+  medeBarra();
+}
+/* a faixa de aviso se apoia na altura real da barra: com o ✓ e o OK visíveis
+   ela pode virar duas linhas, e aí a mensagem sumia atrás dela */
+function medeBarra(){
+  const b = $('barra');
+  if(!b || !b.getBoundingClientRect) return;
+  const h = Math.round(b.getBoundingClientRect().height);
+  const st = document.documentElement.style;
+  if(h && st && st.setProperty) st.setProperty('--barra-h', h + 'px');
 }
 
 /* ---- gaveta de propriedades (telas estreitas) ---- */
@@ -2988,6 +3069,8 @@ $('bNovo').onclick = () => startCmd('NOVO');
 $('bAjuda').onclick = dlgHelp;
 
 /* ---- barra de ações de toque: sem mouse não há botão direito nem Enter ---- */
+$('bMira').onclick = () => setMira(!modoMira);
+$('bPonto').onclick = () => { agirNoPonto(false); draw(); };
 $('bOk').onclick = () => { cin.value = ''; submit(); };
 $('bEsc').onclick = () => tecla({key:'Escape'});
 $('bUndo').onclick = () => startCmd('U');
@@ -3252,10 +3335,12 @@ function dlgHelp(){
   /* num aparelho de toque nada disso é óbvio: não há botão direito, não há
      Enter e o dedo tapa o alvo. A seção só aparece onde de fato se aplica. */
   if(TOQUE) rows.unshift(['Toque', [
-    ['Toque seco', 'Age no ponto tocado: coloca o ponto do comando, ou seleciona.'],
-    ['Segurar e arrastar', 'Mira: a cruz sobe acima do dedo, com snap e prévia ao vivo, e solta no ponto mirado.'],
-    ['Arrastar um dedo', 'Sem comando em andamento, desloca a vista.'],
-    ['Pinça', 'Zoom; o centro entre os dedos desloca a vista junto.'],
+    ['✛ Modo mira', 'Liga e desliga a mira. Ligada, o arrasto deixa de deslocar a vista e passa a empurrar a cruz a partir de onde ela está, como um trackpad: dá para arrastar de um canto vazio e mirar sem o dedo tapar o alvo. Devagar afina, rápido percorre. Nada é cometido até o ✓.'],
+    ['✓', 'Confirma o ponto onde a cruz está: coloca o ponto do comando, ou seleciona o que estiver ali. Só aparece com a mira ligada.'],
+    ['Toque seco', 'Com a mira desligada, age direto no ponto tocado. Com ela ligada, não faz nada — quem comete é o ✓.'],
+    ['Segurar e arrastar', 'Com a mira desligada, mira temporária: a cruz sobe acima do dedo e solta no ponto mirado.'],
+    ['Arrastar um dedo', 'Com a mira desligada e sem comando em andamento, desloca a vista.'],
+    ['Pinça', 'Zoom; o centro entre os dedos desloca a vista junto. Vale nos dois modos.'],
     ['OK', 'Encerra o comando — é o que fecha uma cadeia de paredes. Faz o papel do Enter e do botão direito.'],
     ['Esc · ↺', 'Cancela ou limpa a seleção · desfaz.'],
     ['⌨', 'Abre o console para digitar comandos e coordenadas. O teclado não sobe sozinho.'],
@@ -3315,6 +3400,9 @@ setPrompt('Comando:');
 let consolePref = false;
 try{ consolePref = localStorage.getItem('prancheta.console') === '1'; }catch(e){}
 setConsole(consolePref);
+/* sem passar por setMira: no boot não há o que avisar nem cruz para reposicionar */
+try{ modoMira = localStorage.getItem('prancheta.mira') === '1'; }catch(e){}
+syncBarra();
 /* só agora: abrir o console e montar o painel mexem na altura do canvas, e
    enquadrar antes disso deixa o desenho fora do centro — o que numa tela de
    celular joga metade da planta para fora */

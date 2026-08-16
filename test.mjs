@@ -87,7 +87,8 @@ globalThis.__api = { get M(){ return M; }, CFG, view, cam, U, quads: () => quads
   setConsole, atualizaDica, consoleAberto: () => consoleAberto,
   consideraAquisicao, limpaRastro, adquirir, aplicaRastro, track: () => track, tecla,
   agirNoPonto, syncBarra, abreProps, dedos, iniciaPinca, movePinca, W2S, S2W,
-  setCur: p => { cur = p; },
+  setCur: p => { cur = p; }, getCur: () => cur,
+  setMira, modoMira: () => modoMira, toqueDown, toqueMove, toqueUp,
   gl: () => gl, isDirty3d: () => dirty3d };
 `;
 
@@ -1436,6 +1437,110 @@ t('a gaveta de propriedades abre sozinha quando há objeto selecionado', () => {
   if (!els['tools'].classList.contains('fechado'))
     throw new Error('não fechou ao limpar a seleção');
 });
+
+console.log('\nCELULAR: MODO MIRA');
+/* simula um dedo: os handlers leem a posição do mapa `dedos`, não do evento */
+const dedoDown = (x, y, id = 1) => { A.dedos.set(id, {x, y}); A.toqueDown({pointerId:id}); };
+const dedoMove = (x, y, id = 1) => { A.dedos.set(id, {x, y}); A.toqueMove({pointerId:id}); };
+const dedoUp = (id = 1) => { A.toqueUp({pointerId:id}); A.dedos.delete(id); };
+/* a vista fixa deixa a conta de px→mm previsível */
+const vistaFixa = () => { A.view.x = 0; A.view.y = 0; A.view.z = 0.06; };
+const semSnap = fn => {
+  const s = {g:A.CFG.snapGrid, o:A.CFG.osnap, r:A.CFG.ortho, t:A.CFG.track};
+  A.CFG.snapGrid = A.CFG.osnap = A.CFG.ortho = A.CFG.track = false;
+  try { return fn(); } finally {
+    A.CFG.snapGrid = s.g; A.CFG.osnap = s.o; A.CFG.ortho = s.r; A.CFG.track = s.t;
+  }
+};
+
+t('o ✓ e a marcação do ✛ acompanham o modo', () => {
+  A.setMira(false);
+  eq(els['bPonto'].hidden, true, 'o ✓ aparece com a mira desligada');
+  eq(els['bMira'].classList.contains('on'), false, 'o ✛ marcado sem o modo');
+  A.setMira(true);
+  eq(els['bPonto'].hidden, false, 'o ✓ sumiu com a mira ligada');
+  eq(els['bMira'].classList.contains('on'), true, 'o ✛ não ficou marcado');
+});
+t('a preferência do modo mira é guardada', () => {
+  A.setMira(true);
+  eq(sandbox.localStorage.getItem('prancheta.mira'), '1', 'ligada');
+  A.setMira(false);
+  eq(sandbox.localStorage.getItem('prancheta.mira'), '0', 'desligada');
+});
+t('o arrasto empurra a cruz de onde ela estava, sem saltar para o dedo', () => semSnap(() => {
+  A.tecla({key:'Escape'});
+  vistaFixa(); A.setMira(true);
+  A.setCur({x:0, y:0});                 // centro da tela: 640,360
+  const antes = A.W2S(A.getCur());
+  dedoDown(100, 100);                   // dedo longe da cruz, de propósito
+  dedoMove(160, 100);                   // 60 px de uma vez: ganho no máximo
+  const depois = A.W2S(A.getCur());
+  near(depois.x - antes.x, 60, 1, 'a cruz andou o que o dedo andou');
+  near(depois.y - antes.y, 0, 1, 'sem deriva no eixo Y');
+  if (Math.abs(depois.x - 160) < 30) throw new Error('a cruz saltou para o dedo');
+  dedoUp();
+}));
+t('dedo devagar move menos que dedo rápido, para o mesmo caminho', () => semSnap(() => {
+  vistaFixa(); A.setMira(true);
+  A.setCur({x:0, y:0});
+  const base = A.W2S(A.getCur()).x;
+  dedoDown(100, 100); dedoMove(103, 100); dedoMove(106, 100);   // 2 passos de 3 px
+  const lento = A.W2S(A.getCur()).x - base;
+  dedoUp();
+  A.setCur({x:0, y:0});
+  dedoDown(100, 100); dedoMove(106, 100);                       // 1 passo de 6 px
+  const rapido = A.W2S(A.getCur()).x - base;
+  dedoUp();
+  near(lento, 3, .2, 'ganho fino com dedo devagar');
+  near(rapido, 6, .2, 'ganho cheio com dedo rápido');
+  if (lento >= rapido) throw new Error('o ajuste fino não afinou nada');
+}));
+t('soltar o dedo não comete nada: quem comete é o ✓', () => {
+  A.tecla({key:'Escape'});
+  vistaFixa(); A.setMira(true);
+  A.sel.clear(); A.setSelOp(null); A.setSelBox(null); A.setSelDim(null);
+  const n0 = A.M.walls.length;
+  A.startCmd('L');
+  A.setCur({x:0, y:0});
+  dedoDown(300, 300); dedoMove(360, 300); dedoUp();
+  eq(A.getAC().pts.length, 0, 'ponto entrou sozinho ao soltar');
+  dedoDown(300, 300); dedoMove(300, 360); dedoUp();
+  eq(A.M.walls.length, n0, 'parede criada sem ninguém confirmar');
+  A.tecla({key:'Escape'});
+});
+t('o ✓ comete o ponto onde a cruz parou', () => {
+  A.tecla({key:'Escape'});
+  vistaFixa(); A.setMira(true);
+  const n0 = A.M.walls.length;
+  A.startCmd('L');
+  A.setCur({x:0, y:0});        els['bPonto'].onclick();
+  eq(A.getAC().pts.length, 1, 'primeiro ponto não entrou pelo ✓');
+  A.setCur({x:5000, y:0});     els['bPonto'].onclick();
+  eq(A.M.walls.length, n0 + 1, 'a parede não foi criada pelo ✓');
+  near(A.wallLen(A.M.walls[A.M.walls.length-1]), 5000, .01, 'comprimento');
+  A.tecla({key:'Escape'});
+  A.setMira(false);
+});
+t('com a mira desligada o toque volta a agir direto no ponto', () => {
+  A.tecla({key:'Escape'});
+  A.setMira(false);
+  vistaFixa();
+  const n0 = A.M.walls.length;
+  A.startCmd('L');
+  A.setCur({x:0, y:0});     dedoDown(640, 360); dedoUp();
+  A.setCur({x:3000, y:0});  dedoDown(820, 360); dedoUp();
+  eq(A.M.walls.length, n0 + 1, 'o toque direto parou de desenhar');
+  A.tecla({key:'Escape'});
+});
+t('a mira fora da tela volta ao centro quando o modo liga', () => semSnap(() => {
+  A.setMira(false);
+  vistaFixa();
+  A.setCur({x:900000, y:0});          // bem fora da vista
+  A.setMira(true);
+  const s = A.W2S(A.getCur());
+  if (!(s.x > 8 && s.x < 1280-8)) throw new Error('a cruz ficou fora da tela: ' + s.x);
+  A.setMira(false);
+}));
 
 console.log('\n' + pass + ' passaram, ' + fail + ' falharam\n');
 process.exit(fail ? 1 : 0);
