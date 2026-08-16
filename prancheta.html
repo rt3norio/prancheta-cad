@@ -1,3 +1,7 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Prancheta CAD</title>
 <style>
   /* ---- tokens: light = cópia heliográfica positiva (vellum + grafite) ---- */
@@ -58,10 +62,12 @@
   body{
     margin:0;background:var(--ground);color:var(--ink);
     font-family:var(--f-mono);font-size:13px;
-    height:100vh;overflow:hidden;
+    height:100vh;height:100dvh;overflow:hidden;
+    overscroll-behavior:none;                 /* mata o puxar-para-recarregar */
+    -webkit-text-size-adjust:100%;
     -webkit-font-smoothing:antialiased;
   }
-  #app{display:flex;flex-direction:column;height:100vh}
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
   /* ---- top rail ---- */
   .rail{
@@ -261,6 +267,134 @@
   table.help td{padding:3px 10px 3px 0;vertical-align:top;border-bottom:1px solid var(--hatch)}
   table.help td:first-child{width:150px;color:var(--accent);white-space:nowrap}
   table.help tr:last-child td{border-bottom:none}
+
+  /* ============================================================
+     Toque / telas estreitas
+     ============================================================ */
+
+  /* barra de ações: no toque não existe botão direito nem tecla Enter,
+     e sem OK/Esc não há como encerrar uma cadeia de paredes */
+  .barra{
+    position:absolute;left:50%;transform:translateX(-50%);
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    z-index:4;display:none;gap:5px;
+    background:color-mix(in srgb,var(--rail) 93%,transparent);
+    border:1px solid var(--edge);border-radius:4px;padding:4px;
+    box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 22%,transparent);
+  }
+  body.toque .barra{display:flex}
+  .barra button{
+    min-width:50px;min-height:40px;padding:6px 10px;font-size:12px;
+    border:1px solid var(--edge);color:var(--ink-2);
+  }
+  .barra button.pri{background:var(--accent);color:var(--on-fg);border-color:var(--accent)}
+  body.toque .dica{bottom:calc(62px + env(safe-area-inset-bottom))}
+  /* sem mouse não há hover: o cursor de mira só existe depois do toque */
+  body.toque #cv{cursor:default}
+
+  /* aba que abre/fecha o painel de propriedades quando ele vira gaveta */
+  .props-tab{display:none}
+
+  /* hover grudado é o efeito colateral clássico do toque */
+  @media (hover:none){
+    button:hover{color:var(--ink-2);border-color:transparent}
+    .toolbar button:hover{background:transparent;color:var(--ink-2)}
+    .toolbar button.on{background:var(--accent);color:var(--on-fg)}
+    button.on:hover{color:var(--on-fg)}
+    .chip:hover{transform:none}
+  }
+
+  /* ---- modo compacto: telefone em pé OU deitado ----
+     Vale para as duas orientações porque em ambas falta espaço para o painel
+     de propriedades ficar aberto o tempo todo: ele vira gaveta, com o título
+     na aba — repeti-lo dentro do painel seria dizer a mesma coisa duas vezes. */
+  @media (max-width:760px), (max-height:560px){
+    .props-tab{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      width:100%;min-height:38px;padding:0 12px;flex:0 0 auto;
+      font-family:var(--f-disp);font-size:11px;letter-spacing:.14em;color:var(--ink-3);
+    }
+    .props-tab .chev{font-size:11px;color:var(--ink-3)}
+    .tools.fechado .props{display:none}
+    .props h3{display:none}
+    .props{border-top:1px solid var(--edge)}
+    /* 16px é o limiar abaixo do qual o iOS dá zoom sozinho ao focar o campo */
+    .props input,.num,.prompt input,.card textarea{font-size:16px}
+    .props input{min-height:34px;width:76px}
+    .props input[type="text"]{width:110px}
+    .chip{height:26px}
+    .hist{height:56px}
+    .prompt{padding:8px 12px}
+    .readout{right:8px;top:8px;padding:4px 7px;font-size:10px;gap:1px}
+    .modal{padding:10px}
+    .card{max-height:92dvh}
+    .card .body{padding:12px}
+    .card textarea{height:190px}
+    table.help td:first-child{width:108px;white-space:normal}
+  }
+
+  /* ---- telefone em pé: desenho em cima, ferramentas embaixo ---- */
+  @media (max-width:760px){
+    .rail{height:50px;padding-right:4px}
+    .brand{padding:0 10px}
+    .brand b{font-size:15px}
+    .brand span{display:none}
+    .grp{padding:0 5px;gap:2px}
+    .grp>label{display:none}
+    .rail button{padding:9px 11px;font-size:12.5px;min-height:40px}
+    /* uma barrinha fina é o único aviso de que o rail rola para o lado */
+    .rail::-webkit-scrollbar{height:3px}
+    .rail::-webkit-scrollbar-thumb{background:var(--ink-3);border-radius:2px}
+
+    .stage{flex-direction:column}
+    /* .tools vem antes no HTML; sem a reordenação as ferramentas cobrem o desenho */
+    .viewport{order:1}
+    .tools{
+      order:2;width:auto;flex:0 0 auto;overflow:visible;
+      border-right:none;border-top:1px solid var(--edge);
+      padding-bottom:env(safe-area-inset-bottom);
+    }
+    .props-tab{order:0;border-bottom:1px solid var(--edge)}
+    .props{order:1;border-top:none;border-bottom:1px solid var(--edge);
+      max-height:38dvh;overflow-y:auto;padding:10px}
+    .toolbar{
+      order:2;display:flex;flex-wrap:nowrap;gap:2px;padding:5px 6px;
+      overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
+    }
+    .toolbar button{flex:0 0 auto;min-width:56px;min-height:48px;padding:6px 4px 5px}
+    .toolbar button svg{width:19px;height:19px}
+    .toolbar .sep{grid-column:auto;width:1px;height:auto;min-height:32px;margin:0 4px;align-self:center}
+    /* numa linha só a mensagem virava reticências: aqui ela quebra */
+    .dica{
+      max-width:88%;font-size:12.5px;line-height:1.35;text-align:center;
+      white-space:normal;overflow:visible;text-overflow:clip;
+    }
+  }
+
+  /* telefone bem estreito: a marca é o que menos serve, e o rail precisa do espaço */
+  @media (max-width:480px){
+    .brand{display:none}
+    .rail button{padding:9px 9px;font-size:12px}
+  }
+
+  /* ---- deitado: sobra largura e falta altura, ferramentas voltam à lateral ---- */
+  @media (max-height:560px) and (orientation:landscape){
+    .stage{flex-direction:row}
+    .viewport{order:2}
+    .tools{
+      order:1;width:154px;flex:0 0 auto;
+      border-top:none;border-right:1px solid var(--edge);
+      overflow-y:auto;padding-bottom:0;
+    }
+    .toolbar{order:1;grid-template-columns:1fr 1fr;padding:5px}
+    .toolbar button{min-height:46px;padding:6px 2px 5px}
+    .props-tab{order:2;border-top:1px solid var(--edge)}
+    .props{order:3;max-height:none;border-bottom:none;padding:9px 10px}
+    .rail{height:44px}
+    .rail button{min-height:36px;padding:7px 10px}
+    /* centralizada ela tapa justamente o meio da planta, que é o que se olha */
+    .barra{left:auto;right:10px;transform:none}
+  }
 </style>
 
 <div id="app">
@@ -300,7 +434,10 @@
   </header>
 
   <div class="stage">
-    <aside class="tools">
+    <aside class="tools fechado" id="tools">
+      <button class="props-tab" id="bProps" aria-expanded="false" aria-controls="props">
+        <span id="bPropsL">Propriedades</span><span class="chev">▲</span>
+      </button>
       <div class="toolbar" id="toolbar">
         <button data-cmd="SEL" data-tip="Selecionar (Esc): clique num objeto para editar suas medidas no painel abaixo. Shift soma paredes à seleção.">
           <svg viewBox="0 0 20 20"><path d="M5 3v13l3.2-3.6 2.1 4.3 1.9-.9-2.1-4.3 4.7-.2z"/></svg>Selec</button>
@@ -341,6 +478,12 @@
         <div id="rsel"><em>sel</em> <b>0</b></div>
       </div>
       <div class="dica" id="dica"></div>
+      <div class="barra" id="barra">
+        <button id="bOk" class="pri" data-tip="Encerra o comando em andamento — equivale ao Enter ou ao botão direito.">OK</button>
+        <button id="bEsc" data-tip="Cancela o comando ou limpa a seleção — equivale ao Esc.">Esc</button>
+        <button id="bUndo" data-tip="Desfaz a última alteração (Ctrl+Z).">↺</button>
+        <button id="bTeclado" data-tip="Abre o console para digitar comandos e coordenadas.">⌨</button>
+      </div>
     </div>
   </div>
 
@@ -420,6 +563,13 @@ const pmt = document.getElementById('pmt');
 const histEl = document.getElementById('hist');
 let CW = 0, CH = 0, DPR = 1;
 
+/* ---------------- toque ---------------- */
+/* num aparelho sem mouse o foco na linha de comando abre o teclado virtual, que
+   come metade da tela. No toque o foco passa a ser explícito, pelo botão ⌨. */
+const TOQUE = typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches;
+if(TOQUE && document.body) document.body.classList.add('toque');
+function focarEntrada(forcar){ if(cin && (forcar || !TOQUE)) cin.focus(); }
+
 /* ---------------- utilidades numéricas ---------------- */
 const U = {
   toMM: v => v * CFG.uf,
@@ -464,7 +614,7 @@ function setConsole(v){
   if(v && histEl) histEl.scrollTop = histEl.scrollHeight;
   resize();                 // o canvas ganha ou perde a altura do console
   atualizaDica();
-  if(cin) cin.focus();
+  if(cin) focarEntrada();
 }
 function mostraDica(txt, cls, temporaria){
   const el = document.getElementById('dica');
@@ -2082,7 +2232,15 @@ function render3D(){
   }
   ctx.font = '600 11px ' + css('--f-disp');
   ctx.fillStyle = css('--ink-3');
-  ctx.fillText('ARRASTAR: ORBITAR  ·  SHIFT+ARRASTAR: DESLOCAR  ·  RODA: ZOOM  ·  3D OU ESC: VOLTA AO 2D', 14, CH-14);
+  /* a legenda tem de falar do gesto que o aparelho tem, e caber na largura:
+     no celular ela ficava cortada no meio e ainda ensinava a usar a roda */
+  const ajuda3d = TOQUE
+    ? '1 DEDO: ORBITAR  ·  PINÇA: ZOOM E DESLOCAR  ·  2D: VOLTA'
+    : 'ARRASTAR: ORBITAR  ·  SHIFT+ARRASTAR: DESLOCAR  ·  RODA: ZOOM  ·  3D OU ESC: VOLTA AO 2D';
+  const curto = '1 DEDO: ORBITAR  ·  PINÇA: ZOOM';
+  const cabe = t => ctx.measureText(t).width <= CW - 28;
+  // no toque o rodapé é da barra de ações; a legenda sobe para o canto livre
+  ctx.fillText(cabe(ajuda3d) ? ajuda3d : (cabe(curto) ? curto : ''), 14, TOQUE ? 20 : CH-14);
   updateReadout();
 }
 
@@ -2173,6 +2331,9 @@ function resize(){
   draw();
 }
 window.addEventListener('resize', resize);
+/* girar o aparelho e a barra de endereço aparecendo/sumindo mudam a altura útil */
+window.addEventListener('orientationchange', () => setTimeout(resize, 250));
+if(window.visualViewport) window.visualViewport.addEventListener('resize', resize);
 
 function zoomExtents(){
   const bb = bbox();
@@ -2186,22 +2347,38 @@ function zoomExtents(){
 
 let panning = false, panStart = null, orbiting = false, orbStart = null;
 
-cv.addEventListener('pointerdown', e => {
-  cv.setPointerCapture(e.pointerId);
-  cin.focus();
-  if(mode === '3d'){
-    orbiting = true;
-    orbStart = {x:e.offsetX, y:e.offsetY, az:cam.az, el:cam.el, tx:cam.tx, ty:cam.ty, shift:e.shiftKey};
-    cv.classList.add('orbit');
-    return;
+/* posição em px dentro do canvas: clientX menos o retângulo vale para vários
+   dedos e com pointer capture, ao contrário de offsetX */
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  return {x:e.clientX - r.left, y:e.clientY - r.top};
+}
+function moveCursor(p){
+  curRaw = S2W(p);
+  cur = snapPoint(curRaw, basePoint());
+  consideraAquisicao(cur, snapInfo);
+  updateHover();
+}
+function panMove(p){
+  view.x = panStart.vx - (p.x - panStart.x)/view.z;
+  view.y = panStart.vy + (p.y - panStart.y)/view.z;
+  draw();
+}
+function orbMove(p, shift){
+  const dx = p.x - orbStart.x, dy = p.y - orbStart.y;
+  if(orbStart.shift || shift){
+    const s = cam.r/CH*1.6;
+    cam.tx = orbStart.tx - (dx*Math.sin(cam.az) + dy*Math.cos(cam.az)*0.4)*s;
+    cam.ty = orbStart.ty + (dx*Math.cos(cam.az) - dy*Math.sin(cam.az)*0.4)*s;
+  }else{
+    cam.az = orbStart.az - dx*0.006;
+    cam.el = clamp(orbStart.el + dy*0.005, 0.06, 1.45);
   }
-  const ferramentaPan = AC && AC.spec.key === 'P';
-  if(e.button === 1 || (e.button === 0 && (e.altKey || ferramentaPan))){
-    panning = true; panStart = {x:e.offsetX, y:e.offsetY, vx:view.x, vy:view.y};
-    cv.classList.add('arrastando');
-    e.preventDefault(); return;
-  }
-  if(e.button === 2) return;
+  draw();
+}
+
+/* o que um clique ou um toque faz no ponto corrente */
+function agirNoPonto(shift){
   if(AC){ feedPoint(cur); return; }
   // seleção — o que é fino e fica por cima vem antes das paredes
   const limpar = () => { sel.clear(); selOp = null; selBox = null; selDim = null; };
@@ -2222,33 +2399,142 @@ cv.addEventListener('pointerdown', e => {
       syncTools(); draw(); return;
     }
   }
-  if(!e.shiftKey) limpar();
+  if(!shift) limpar();
   if(w){ sel.has(w.id) ? sel.delete(w.id) : sel.add(w.id); }
   syncTools(); draw();
+}
+
+/* ---- gestos de toque ------------------------------------------------------
+   Um dedo: um toque seco age no ponto tocado; segurar ou arrastar entra em
+   mira, com a cruz deslocada acima do dedo — sem isso o próprio dedo tapa o
+   alvo e não há como ver o snap antes de soltar. Sem comando em andamento o
+   arrasto simples desloca a vista, que é o gesto que todo mundo tenta primeiro.
+   Dois dedos: a pinça dá zoom e o centro dos dedos arrasta a vista.
+--------------------------------------------------------------------------- */
+const dedos = new Map();
+let pinca = null, mira = null;
+const MIRA_DY = 36;      // px que a cruz sobe em relação ao dedo
+const MIRA_FOLGA = 9;    // px que ainda contam como toque seco
+const MIRA_MS = 240;     // segurar parado por este tempo também entra em mira
+
+function pontoMira(){ return mira.mirando ? {x:mira.p.x, y:mira.p.y - MIRA_DY} : mira.p; }
+function soltaMira(){ if(mira){ clearTimeout(mira.timer); mira = null; } }
+
+function iniciaPinca(){
+  soltaMira();
+  panning = false; orbiting = false;
+  const [a, b] = [...dedos.values()];
+  const c = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+  pinca = {
+    d0: Math.max(1, Math.hypot(b.x-a.x, b.y-a.y)), c0: c,
+    z0: view.z, w0: S2W(c), r0: cam.r, tx0: cam.tx, ty0: cam.ty
+  };
+}
+function movePinca(){
+  const [a, b] = [...dedos.values()];
+  const d = Math.max(1, Math.hypot(b.x-a.x, b.y-a.y));
+  const c = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+  const k = d / pinca.d0;
+  if(mode === '3d'){
+    cam.r = clamp(pinca.r0 / k, 800, 400000);
+    const s = cam.r/CH*1.6, dx = c.x - pinca.c0.x, dy = c.y - pinca.c0.y;
+    cam.tx = pinca.tx0 - (dx*Math.sin(cam.az) + dy*Math.cos(cam.az)*0.4)*s;
+    cam.ty = pinca.ty0 + (dx*Math.cos(cam.az) - dy*Math.sin(cam.az)*0.4)*s;
+    draw(); return;
+  }
+  view.z = clamp(pinca.z0 * k, 0.0008, 4);
+  // o ponto do desenho que estava sob o centro dos dedos continua sob ele
+  view.x = pinca.w0.x - (c.x - CW/2)/view.z;
+  view.y = pinca.w0.y + (c.y - CH/2)/view.z;
+  draw();
+}
+
+function toqueDown(e){
+  const p = dedos.get(e.pointerId);
+  if(dedos.size === 2){ iniciaPinca(); return; }
+  if(dedos.size > 2) return;
+  if(mode === '3d'){
+    orbiting = true;
+    orbStart = {x:p.x, y:p.y, az:cam.az, el:cam.el, tx:cam.tx, ty:cam.ty, shift:false};
+    return;
+  }
+  if(AC && AC.spec.key === 'P'){
+    panning = true; panStart = {x:p.x, y:p.y, vx:view.x, vy:view.y};
+    return;
+  }
+  mira = {id:e.pointerId, x0:p.x, y0:p.y, p, mirando:false, podePan:!AC};
+  mira.timer = setTimeout(() => {
+    if(!mira) return;
+    mira.mirando = true;
+    moveCursor(pontoMira()); draw();
+  }, MIRA_MS);
+  moveCursor(p); draw();
+}
+
+function toqueMove(e){
+  if(!mira || mira.id !== e.pointerId) return;
+  mira.p = dedos.get(e.pointerId);
+  if(!mira.mirando){
+    if(Math.hypot(mira.p.x-mira.x0, mira.p.y-mira.y0) < MIRA_FOLGA) return;
+    if(mira.podePan){
+      const q = mira.p, ox = mira.x0, oy = mira.y0;
+      soltaMira();
+      panning = true; panStart = {x:ox, y:oy, vx:view.x, vy:view.y};
+      panMove(q); return;
+    }
+    mira.mirando = true;
+  }
+  moveCursor(pontoMira()); draw();
+}
+
+function toqueUp(e){
+  if(!mira || mira.id !== e.pointerId) return;
+  clearTimeout(mira.timer);
+  moveCursor(pontoMira());
+  mira = null;
+  agirNoPonto(false);
+  draw();
+}
+
+cv.addEventListener('pointerdown', e => {
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+  focarEntrada();
+  if(e.pointerType === 'touch'){
+    dedos.set(e.pointerId, pos(e));
+    toqueDown(e);
+    e.preventDefault();
+    return;
+  }
+  if(mode === '3d'){
+    orbiting = true;
+    orbStart = {x:e.offsetX, y:e.offsetY, az:cam.az, el:cam.el, tx:cam.tx, ty:cam.ty, shift:e.shiftKey};
+    cv.classList.add('orbit');
+    return;
+  }
+  const ferramentaPan = AC && AC.spec.key === 'P';
+  if(e.button === 1 || (e.button === 0 && (e.altKey || ferramentaPan))){
+    panning = true; panStart = {x:e.offsetX, y:e.offsetY, vx:view.x, vy:view.y};
+    cv.classList.add('arrastando');
+    e.preventDefault(); return;
+  }
+  if(e.button === 2) return;
+  agirNoPonto(e.shiftKey);
 });
 
 cv.addEventListener('pointermove', e => {
-  if(orbiting){
-    const dx = e.offsetX - orbStart.x, dy = e.offsetY - orbStart.y;
-    if(orbStart.shift || e.shiftKey){
-      const s = cam.r/CH*1.6;
-      cam.tx = orbStart.tx - (dx*Math.sin(cam.az) + dy*Math.cos(cam.az)*0.4)*s;
-      cam.ty = orbStart.ty + (dx*Math.cos(cam.az) - dy*Math.sin(cam.az)*0.4)*s;
-    }else{
-      cam.az = orbStart.az - dx*0.006;
-      cam.el = clamp(orbStart.el + dy*0.005, 0.06, 1.45);
-    }
-    draw(); return;
+  if(e.pointerType === 'touch'){
+    if(!dedos.has(e.pointerId)) return;
+    const p = pos(e);
+    dedos.set(e.pointerId, p);
+    if(pinca && dedos.size >= 2){ movePinca(); return; }
+    if(panning){ panMove(p); return; }
+    if(orbiting){ orbMove(p, false); return; }
+    toqueMove(e);
+    return;
   }
-  if(panning){
-    view.x = panStart.vx - (e.offsetX - panStart.x)/view.z;
-    view.y = panStart.vy + (e.offsetY - panStart.y)/view.z;
-    draw(); return;
-  }
-  curRaw = S2W({x:e.offsetX, y:e.offsetY});
-  cur = snapPoint(curRaw, basePoint());
-  consideraAquisicao(cur, snapInfo);
-  updateHover();
+  if(orbiting){ orbMove({x:e.offsetX, y:e.offsetY}, e.shiftKey); return; }
+  if(panning){ panMove({x:e.offsetX, y:e.offsetY}); return; }
+  moveCursor({x:e.offsetX, y:e.offsetY});
   draw();
 });
 
@@ -2282,10 +2568,22 @@ stage.addEventListener('drop', e => {
 
 const stopDrag = () => {
   panning = false; orbiting = false;
-  cv.classList.remove('orbit'); cv.classList.remove('arrastando');
+  cv.classList.remove('arrastando');
+  cv.classList.toggle('orbit', mode === '3d');   // no 3D o cursor de órbita é o padrão
 };
-cv.addEventListener('pointerup', stopDrag);
-cv.addEventListener('pointercancel', stopDrag);
+function encerraPonteiro(e){
+  if(e.pointerType === 'touch'){
+    dedos.delete(e.pointerId);
+    if(dedos.size < 2) pinca = null;
+    if(e.type === 'pointerup') toqueUp(e); else soltaMira();
+    // o dedo que sobra depois de uma pinça não vira arrasto: isso daria um pulo
+    if(dedos.size === 0) stopDrag();
+    return;
+  }
+  stopDrag();
+}
+cv.addEventListener('pointerup', encerraPonteiro);
+cv.addEventListener('pointercancel', encerraPonteiro);
 cv.addEventListener('contextmenu', e => {
   e.preventDefault();
   if(AC){ AC.spec.enter ? AC.spec.enter(AC) : endCmd('  cancelado'); }
@@ -2340,6 +2638,16 @@ function tecla(e){
   if(e.key === 'Enter'){ e.preventDefault(); submit(); }
 }
 cin.addEventListener('keydown', tecla);
+/* teclado físico num tablet: com o foco fora da linha de comando — o caso normal
+   no toque, onde não focamos nada para não abrir o teclado virtual — os atalhos
+   precisam continuar valendo */
+document.addEventListener('keydown', e => {
+  const alvo = e.target;
+  if(alvo === cin) return;
+  if(alvo && alvo.closest && alvo.closest('input,textarea,select,button')) return;
+  focarEntrada(true);
+  tecla(e);
+});
 
 function submit(){
   const raw = cin.value.trim();
@@ -2403,6 +2711,9 @@ function showTip(host, text){
   }, 260);
 }
 document.addEventListener('pointerover', e => {
+  // no toque não existe hover: o pointerover do próprio toque deixaria a dica
+  // presa na tela até o toque seguinte
+  if(e.pointerType && e.pointerType !== 'mouse'){ hideTip(); return; }
   const host = e.target.closest && e.target.closest('[data-tip]');
   if(!host){ hideTip(); return; }
   const text = host.dataset.tip;
@@ -2416,6 +2727,26 @@ function syncTools(){
   const key = AC ? AC.spec.key : 'SEL';
   for(const b of toolBtns) b.classList.toggle('on', b.dataset.cmd === key);
   renderProps();
+  syncBarra();
+}
+/* o OK só faz sentido com um comando em andamento */
+function syncBarra(){
+  const ok = $('bOk');
+  if(ok) ok.hidden = !AC;
+}
+
+/* ---- gaveta de propriedades (telas estreitas) ---- */
+let propsLive = false;
+function abreProps(v){
+  const t = $('tools'); if(!t) return;
+  t.classList.toggle('fechado', !v);
+  const b = $('bProps');
+  if(b){
+    b.setAttribute('aria-expanded', v ? 'true' : 'false');
+    const ch = b.querySelector('.chev');
+    if(ch) ch.textContent = v ? '▼' : '▲';
+  }
+  resize();
 }
 for(const b of toolBtns){
   b.onclick = () => {
@@ -2426,7 +2757,7 @@ for(const b of toolBtns){
     }else{
       startCmd(c);
     }
-    cin.focus();
+    focarEntrada();
   };
 }
 
@@ -2554,6 +2885,14 @@ function renderProps(){
   el.innerHTML = html;
 
   const live = !!(op || bx || dm || ws.length);   // edita o desenho, não só o padrão da ferramenta
+
+  // na gaveta do celular o título vai para a aba, e ela abre sozinha quando
+  // passa a haver um objeto selecionado — que é quando o painel importa
+  const tituloEl = el.querySelector('h3');
+  const lab = $('bPropsL');
+  if(lab) lab.textContent = tituloEl ? tituloEl.textContent : 'Propriedades';
+  if(live !== propsLive){ propsLive = live; abreProps(live); }
+
   for(const [id, apply] of bind){
     const inp = $('p_' + id); if(!inp) continue;
     inp.onchange = () => {
@@ -2648,6 +2987,13 @@ $('bSvg').onclick = salvarSVG;
 $('bNovo').onclick = () => startCmd('NOVO');
 $('bAjuda').onclick = dlgHelp;
 
+/* ---- barra de ações de toque: sem mouse não há botão direito nem Enter ---- */
+$('bOk').onclick = () => { cin.value = ''; submit(); };
+$('bEsc').onclick = () => tecla({key:'Escape'});
+$('bUndo').onclick = () => startCmd('U');
+$('bTeclado').onclick = () => { setConsole(true); focarEntrada(true); };
+$('bProps').onclick = () => abreProps($('tools').classList.contains('fechado'));
+
 /* ---- modais ---- */
 const modal = $('modal');
 function openModal(title, bodyHTML, footHTML){
@@ -2656,7 +3002,7 @@ function openModal(title, bodyHTML, footHTML){
   $('mFoot').innerHTML = footHTML || '';
   modal.classList.add('open');
 }
-function closeModal(){ modal.classList.remove('open'); cin.focus(); }
+function closeModal(){ modal.classList.remove('open'); focarEntrada(); }
 $('mClose').onclick = closeModal;
 modal.addEventListener('click', e => { if(e.target === modal) closeModal(); });
 
@@ -2903,6 +3249,18 @@ function dlgHelp(){
       ['EXEMPLO', 'Carrega uma planta de demonstração.']
     ]]
   ];
+  /* num aparelho de toque nada disso é óbvio: não há botão direito, não há
+     Enter e o dedo tapa o alvo. A seção só aparece onde de fato se aplica. */
+  if(TOQUE) rows.unshift(['Toque', [
+    ['Toque seco', 'Age no ponto tocado: coloca o ponto do comando, ou seleciona.'],
+    ['Segurar e arrastar', 'Mira: a cruz sobe acima do dedo, com snap e prévia ao vivo, e solta no ponto mirado.'],
+    ['Arrastar um dedo', 'Sem comando em andamento, desloca a vista.'],
+    ['Pinça', 'Zoom; o centro entre os dedos desloca a vista junto.'],
+    ['OK', 'Encerra o comando — é o que fecha uma cadeia de paredes. Faz o papel do Enter e do botão direito.'],
+    ['Esc · ↺', 'Cancela ou limpa a seleção · desfaz.'],
+    ['⌨', 'Abre o console para digitar comandos e coordenadas. O teclado não sobe sozinho.'],
+    ['3D', 'Um dedo orbita; a pinça dá zoom e desloca.']
+  ]]);
   let html = '<p style="margin:0 0 4px;color:var(--ink-2)">Digite os comandos na barra inferior. Enter com a linha vazia repete o último comando; Esc cancela.</p>';
   for(const [cap, items] of rows){
     html += '<table class="help"><caption>' + cap + '</caption><tbody>';
@@ -2951,15 +3309,18 @@ function demo(){
 resize();
 if(!loadPersisted()) demo();
 setUnit('cm');
-zoomExtents();
 log('Prancheta CAD — planta baixa em escala real.');
 log('Digite AJUDA para a lista de comandos, ou L para começar uma parede.', 'ok');
 setPrompt('Comando:');
 let consolePref = false;
 try{ consolePref = localStorage.getItem('prancheta.console') === '1'; }catch(e){}
 setConsole(consolePref);
-cin.focus();
+/* só agora: abrir o console e montar o painel mexem na altura do canvas, e
+   enquadrar antes disso deixa o desenho fora do centro — o que numa tela de
+   celular joga metade da planta para fora */
+zoomExtents();
+focarEntrada();
 document.addEventListener('click', e => {
-  if(!modal.classList.contains('open') && !e.target.closest('button, input')) cin.focus();
+  if(!modal.classList.contains('open') && !e.target.closest('button, input')) focarEntrada();
 });
 </script>

@@ -34,6 +34,8 @@ const mkEl = (id) => {
     classList:{ _s:new Set(), toggle(c,v){ v ? this._s.add(c) : this._s.delete(c); }, add(c){this._s.add(c);},
                 remove(c){this._s.delete(c);}, contains(c){return this._s.has(c);} },
     getContext(){ return ctxProxy; },
+    hidden:false, attrs:{},
+    setAttribute(k, v){ this.attrs[k] = String(v); }, getAttribute(k){ return this.attrs[k] ?? null; },
     addEventListener(){}, removeEventListener(){}, setPointerCapture(){}, focus(){},
     appendChild(c){ this.children.push(c); }, removeChild(c){ this.children.shift(); }, remove(){},
     querySelector(){ return mkEl('q'); }, closest(){ return null; }, select(){},
@@ -84,6 +86,8 @@ globalThis.__api = { get M(){ return M; }, CFG, view, cam, U, quads: () => quads
   snapPoint, snapLines, segInter, dentroDeParede, carregarDoc, nomeBase, escreverArquivo,
   setConsole, atualizaDica, consoleAberto: () => consoleAberto,
   consideraAquisicao, limpaRastro, adquirir, aplicaRastro, track: () => track, tecla,
+  agirNoPonto, syncBarra, abreProps, dedos, iniciaPinca, movePinca, W2S, S2W,
+  setCur: p => { cur = p; },
   gl: () => gl, isDirty3d: () => dirty3d };
 `;
 
@@ -1325,6 +1329,112 @@ t('ESP altera espessura na unidade corrente', () => {
 t('UN m reescala a formatação', () => {
   A.startCmd('UN', 'm'); eq(A.U.fmt(4500), '4,50');
   A.startCmd('UN', 'cm'); eq(A.U.fmt(4500), '450');
+});
+
+console.log('\nCELULAR: MARCAÇÃO E ESTILO');
+t('meta viewport declara a largura do aparelho', () => {
+  if (!/<meta name="viewport"[^>]*width=device-width/.test(html))
+    throw new Error('sem meta viewport: a página abre em largura de desktop');
+});
+t('a página declara o charset', () => {
+  if (!/<meta charset="utf-8">/i.test(html)) throw new Error('sem charset');
+});
+t('a altura usa dvh, que acompanha a barra de endereço do celular', () => {
+  if (!/height:100dvh/.test(html)) throw new Error('altura ainda presa ao vh');
+});
+t('existe o ponto de quebra para tela estreita', () => {
+  if (!/@media \(max-width:760px\)/.test(html)) throw new Error('sem consulta de mídia');
+});
+t('a barra de toque traz OK, Esc, desfazer e teclado', () => {
+  for (const id of ['bOk','bEsc','bUndo','bTeclado'])
+    if (!new RegExp('id="' + id + '"').test(html)) throw new Error('falta ' + id);
+});
+t('campos de texto a 16px no celular, senão o iOS dá zoom sozinho ao focar', () => {
+  if (!/\.props input,\.num,\.prompt input,\.card textarea\{font-size:16px\}/.test(html))
+    throw new Error('campo abaixo de 16px dentro do ponto de quebra');
+});
+t('os botões da coluna de ferramentas alcançam o alvo mínimo de toque', () => {
+  if (!/\.toolbar button\{flex:0 0 auto;min-width:56px;min-height:48px/.test(html))
+    throw new Error('alvo de toque pequeno demais');
+});
+
+console.log('\nCELULAR: GESTOS');
+t('pinça de dois dedos dá zoom mantendo o desenho sob o centro dos dedos', () => {
+  A.setMode('2d');
+  A.view.x = 0; A.view.y = 0; A.view.z = 0.06;
+  A.dedos.clear();
+  A.dedos.set(1, {x:540, y:300});
+  A.dedos.set(2, {x:740, y:420});
+  A.iniciaPinca();
+  const centro = {x:640, y:360};
+  const antes = A.S2W(centro);
+  // afasta os dedos ao dobro da distância, com o mesmo centro
+  A.dedos.set(1, {x:440, y:240});
+  A.dedos.set(2, {x:840, y:480});
+  A.movePinca();
+  near(A.view.z, 0.12, 1e-9, 'o zoom dobrou');
+  const depois = A.S2W(centro);
+  near(depois.x, antes.x, .5, 'x sob o centro');
+  near(depois.y, antes.y, .5, 'y sob o centro');
+  A.dedos.clear();
+});
+t('a pinça também arrasta: o centro dos dedos leva a vista junto', () => {
+  A.view.x = 0; A.view.y = 0; A.view.z = 0.06;
+  A.dedos.clear();
+  A.dedos.set(1, {x:600, y:360});
+  A.dedos.set(2, {x:680, y:360});
+  A.iniciaPinca();
+  const alvo = A.S2W({x:640, y:360});
+  A.dedos.set(1, {x:500, y:260});
+  A.dedos.set(2, {x:580, y:260});   // mesma distância: só deslocamento
+  A.movePinca();
+  near(A.view.z, 0.06, 1e-9, 'sem zoom');
+  const s = A.W2S(alvo);
+  near(s.x, 540, .5, 'o ponto acompanhou o centro em x');
+  near(s.y, 260, .5, 'o ponto acompanhou o centro em y');
+  A.dedos.clear();
+});
+
+console.log('\nCELULAR: AÇÕES SEM MOUSE');
+t('agirNoPonto seleciona a parede sob o ponto, como fazia o clique direto', () => {
+  A.tecla({key:'Escape'});
+  A.sel.clear(); A.setSelOp(null); A.setSelBox(null); A.setSelDim(null);
+  const w = paredeSul();
+  A.setCur({x:4500, y:0});
+  A.agirNoPonto(false);
+  if (!A.sel.has(w.id)) throw new Error('a parede não foi selecionada');
+  A.sel.clear(); A.syncTools();
+});
+t('agirNoPonto alimenta o comando em andamento em vez de selecionar', () => {
+  const n0 = A.M.walls.length;
+  A.startCmd('L');
+  A.setCur({x:0, y:0});     A.agirNoPonto(false);
+  A.setCur({x:5000, y:0});  A.agirNoPonto(false);
+  eq(A.M.walls.length, n0 + 1, 'parede criada pelo toque');
+  A.tecla({key:'Escape'});
+});
+t('o OK da barra só aparece com um comando em andamento', () => {
+  A.tecla({key:'Escape'});
+  A.syncBarra();
+  eq(els['bOk'].hidden, true, 'sem comando');
+  A.startCmd('L');
+  eq(els['bOk'].hidden, false, 'com comando');
+  A.tecla({key:'Escape'});
+  eq(els['bOk'].hidden, true, 'depois do Esc');
+});
+t('a gaveta de propriedades abre sozinha quando há objeto selecionado', () => {
+  A.tecla({key:'Escape'});
+  A.sel.clear(); A.setSelOp(null); A.setSelBox(null); A.setSelDim(null);
+  A.syncTools(); A.abreProps(false);
+  A.sel.add(paredeSul().id);
+  A.syncTools();
+  if (els['tools'].classList.contains('fechado'))
+    throw new Error('não abriu com a parede selecionada');
+  eq(els['bProps'].getAttribute('aria-expanded'), 'true', 'aria');
+  A.sel.clear();
+  A.syncTools();
+  if (!els['tools'].classList.contains('fechado'))
+    throw new Error('não fechou ao limpar a seleção');
 });
 
 console.log('\n' + pass + ' passaram, ' + fail + ' falharam\n');

@@ -157,6 +157,41 @@ remembered between sessions.
 
 ---
 
+## Phone and tablet
+
+A narrow screen restacks the interface: the drawing goes on top, the tool column
+becomes a scrollable strip at the bottom, and the property panel becomes a drawer
+that opens itself when you select an object and gets out of the way while you
+draw. On a phone held sideways the tools move back to the side, where the space
+actually is.
+
+**Gestures**
+
+| Gesture | What it does |
+| --- | --- |
+| Tap | Acts on the point you touched: feeds the running command, or selects |
+| Press and drag | Aim: the crosshair rises above your finger, with live snap and preview, and commits where it points |
+| One-finger drag, no command running | Pans the view |
+| Two-finger pinch | Zoom, and the midpoint between the fingers drags the view along |
+| One finger in 3D | Orbits |
+
+Aiming exists because your finger covers exactly what you are trying to hit: while
+dragging, the crosshair sits 36 px above it so you can check the snap before
+letting go.
+
+**Action bar**
+
+Touch has no right button and no Enter key, so a small bar floats over the
+drawing: `OK` ends the running command — this is what closes a wall chain —,
+`Esc` cancels or clears the selection, `↺` undoes, and `⌨` opens the console to
+type commands and coordinates. `OK` only shows up while a command is running.
+
+The virtual keyboard does **not** pop up on its own: on a touch device the command
+line takes focus only when you ask for it, through `⌨`. A physical keyboard
+attached to a tablet keeps every shortcut working.
+
+---
+
 ## Snapping
 
 With **OSnap** on, the cursor snaps to wall **faces**, to the corners where two faces

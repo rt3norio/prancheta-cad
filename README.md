@@ -149,6 +149,40 @@ preferência fica guardada entre sessões.
 
 ---
 
+## Celular e tablet
+
+A tela estreita reempilha a interface: o desenho fica em cima, a coluna de
+ferramentas vira uma faixa rolável embaixo e o painel de propriedades vira uma
+gaveta, que abre sozinha quando você seleciona um objeto e some enquanto você
+desenha. Deitado num telefone as ferramentas voltam para a lateral, que é onde
+sobra espaço.
+
+**Gestos**
+
+| Gesto | O que faz |
+| --- | --- |
+| Toque seco | Age no ponto tocado: coloca o ponto do comando, ou seleciona |
+| Segurar e arrastar | Mira: a cruz sobe acima do dedo, com snap e prévia ao vivo, e solta no ponto mirado |
+| Arrastar um dedo, sem comando ativo | Desloca a vista |
+| Pinça de dois dedos | Zoom, e o centro dos dedos arrasta a vista junto |
+| Um dedo no 3D | Orbita |
+
+A mira existe porque o dedo tapa exatamente o que você quer acertar: arrastando,
+a cruz fica 36 px acima dele e dá para conferir o snap antes de soltar.
+
+**Barra de ações**
+
+Sem mouse não há botão direito nem tecla Enter, então uma barrinha flutua sobre o
+desenho: `OK` encerra o comando em andamento — é o que fecha uma cadeia de
+paredes —, `Esc` cancela ou limpa a seleção, `↺` desfaz e `⌨` abre o console para
+digitar comandos e coordenadas. O `OK` só aparece quando há comando ativo.
+
+O teclado virtual **não** abre sozinho: num aparelho de toque a linha de comando
+só recebe foco quando você pede, pelo `⌨`. Teclado físico ligado a um tablet
+continua funcionando com todos os atalhos.
+
+---
+
 ## Snap
 
 Com **OSnap** ligado, o cursor gruda nas **faces** das paredes, nos cantos onde duas
